@@ -10,7 +10,7 @@ from titanium.core.live_client import GeminiLiveClient
 from titanium.core.wake_listener import WakeWordListener
 from titanium.ui.siri_orb import SiriOrbWidget
 from titanium.ui.circle_search import CircleToSearchOverlay
-from titanium.ui.code_viewer import CodeViewerWindow
+from titanium.ui.subtitle_pill import CompactSubtitlePill
 from titanium.ui.tray import TitaniumTrayIcon
 from titanium.tools.installer import WindowsInstaller
 
@@ -34,7 +34,7 @@ class TitaniumApp(QObject):
         # 2. Initialize UI Components
         self.orb = SiriOrbWidget()
         self.overlay = CircleToSearchOverlay(on_crop_captured=self.on_circle_crop_captured)
-        self.code_viewer = CodeViewerWindow(title="Titanium Assistant")
+        self.subtitle_pill = CompactSubtitlePill()
         self.tray = TitaniumTrayIcon(
             on_toggle_orb=self.toggle_orb_visibility,
             on_circle_search=self.start_circle_search,
@@ -72,9 +72,9 @@ class TitaniumApp(QObject):
 
         print("[Titanium] Initialized and running in system tray with Wake Word.")
 
-    def _on_show_response(self, text: str, title: str):
-        """Displays code or rich response card docked directly below the Siri Orb."""
-        self.code_viewer.display_below_orb(text, self.orb.geometry(), title)
+    def _on_show_response(self, text: str, title: str = ""):
+        """Displays ultra-compact floating subtitle pill docked directly below the Siri Orb."""
+        self.subtitle_pill.display_below_orb(text, self.orb.geometry())
 
     def toggle_orb_visibility(self):
         if self.orb.isVisible():
@@ -164,9 +164,10 @@ class TitaniumApp(QObject):
         def worker():
             explanation = self.router.analyze_image_crop(
                 png_bytes,
-                user_query="Is selected area ko dekhein aur bataiye kya hai. Explain concisely in natural Hinglish."
+                user_query="Is selected area ko dekhein aur bataiye kya hai. Explain crisp and concisely in 1-2 natural sentences."
             )
-            self.show_response_signal.emit(explanation, "Circle to Search Analysis")
+            # Display ultra-compact pill under orb
+            self.show_response_signal.emit(explanation, "")
             self.speak_with_pause(explanation)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -177,9 +178,8 @@ class TitaniumApp(QObject):
 
         def worker():
             answer = self.router.handle_user_query(prompt)
-            is_code_request = any(w in prompt.lower() for w in ["code", "python", "script", "function", "program", "sql", "html", "write", "create"])
-            if is_code_request or "```" in answer or len(answer) > 200:
-                self.show_response_signal.emit(answer, "Titanium Code & Intelligence")
+            # Always show crisp subtitle pill right under orb for conversation
+            self.show_response_signal.emit(answer, "")
             self.speak_with_pause(answer)
 
         threading.Thread(target=worker, daemon=True).start()
