@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QMenu, QApplication, QInputDialog, QLineEdit
 )
 from PySide6.QtCore import (
-    Qt, QTimer, QPoint, QRectF, Signal, QPropertyAnimation, QEasingCurve
+    Qt, QTimer, QPoint, QRectF, Signal, QPointF
 )
 from PySide6.QtGui import (
     QPainter, QColor, QRadialGradient, QConicalGradient,
@@ -14,16 +14,18 @@ from PySide6.QtGui import (
 )
 
 class SiriOrbWidget(QWidget):
-    """Next-Gen Siri / Apple Intelligence Organic Glass Orb with 4 distinct states:
-    - Listening: Acoustic shockwaves and electric cyan-violet fluid plasma
-    - Thinking: Dual-vortex cosmic nebula rotating in real-time
-    - Speaking: Rhythmic voice-reactive coral/amber warm bounce
-    - Seeing: Emerald-mint cybernetic vision scanner and targeting reticle
+    """Siri AI Animated Fluid Sphere (Inspired by Rob on Dribbble).
     
-    Auto-Show & Auto-Hide:
-    - Invisible when doing other things in Windows.
-    - Instantly reveals when 'Hey Titanium' is spoken or hotkey triggered.
-    - Gracefully fades away after conversation goes idle.
+    Features:
+    - Organic 3D fluid blob with harmonic surface wave deformation
+    - Multi-layer liquid glass iridescence (Cyan, Magenta, Violet, Sunset Coral)
+    - Specular liquid curvature highlights and subsurface scattering glow
+    - Docked at Top-Right with minimal margins
+    - 4 distinct animated states:
+        1. Listening: Reactive acoustic liquid shockwaves & electric cyan-violet plasma
+        2. Thinking: Swirling dual-vortex cosmic nebula
+        3. Speaking: Voice-amplitude liquid bounce with warm coral & amber flare
+        4. Seeing: Cyber emerald vision scanner with optical targeting reticle
     """
 
     request_circle_search = Signal()
@@ -35,10 +37,10 @@ class SiriOrbWidget(QWidget):
     def __init__(self, size: int = 94):
         super().__init__()
         self.orb_size = size
-        # Generous padding for multi-layer bloom and acoustic shockwaves
-        self.setFixedSize(size + 50, size + 50)
+        # Generous widget bounds for fluid deformation waves & atmosphere bloom
+        self.setFixedSize(size + 60, size + 60)
 
-        # Transparent, frameless, always-on-top window
+        # Frameless, transparent, always-on-top window
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
@@ -51,13 +53,13 @@ class SiriOrbWidget(QWidget):
         self.state = "idle"
         self.screen_sharing = False
 
-        # Physics & Animation Variables
+        # Physics & Harmonic Wave Variables
         self.phase = 0.0
         self.pulse_scale = 1.0
-        self.glow_intensity = 0.7
+        self.glow_intensity = 0.75
         self.drag_position = QPoint()
 
-        # Ensure 100% permanent visibility at full opacity
+        # Ensure permanent visibility at full opacity
         self.setWindowOpacity(1.0)
 
         # 60 FPS animation loop
@@ -65,15 +67,16 @@ class SiriOrbWidget(QWidget):
         self.anim_timer.timeout.connect(self._update_animation)
         self.anim_timer.start(16)
 
-        self._dock_to_bottom_left()
+        # Dock at top-right corner with decreased margins
+        self._dock_to_top_right()
 
-    def _dock_to_bottom_left(self):
-        """Positions the orb at bottom-left above the Windows taskbar."""
+    def _dock_to_top_right(self):
+        """Positions the orb at the top-right corner of the screen with compact margins."""
         screen = QApplication.primaryScreen().availableGeometry()
-        margin_x = 35
-        margin_y = 45
-        x = screen.left() + margin_x
-        y = screen.bottom() - self.height() - margin_y
+        margin_x = 16  # Decreased margin
+        margin_y = 16  # Decreased margin
+        x = screen.right() - self.width() - margin_x
+        y = screen.top() + margin_y
         self.move(x, y)
 
     def reveal(self):
@@ -95,32 +98,64 @@ class SiriOrbWidget(QWidget):
         self.set_state("seeing" if active else "idle")
 
     def _update_animation(self):
-        """Calculates dynamic fluid physics for each specific state."""
-        self.phase += 0.05
+        """Calculates harmonic fluid dynamics and pulse physics."""
+        self.phase += 0.045
         if self.phase > 1000:
             self.phase = 0.0
 
         if self.state == "idle":
-            self.pulse_scale = 1.0 + 0.03 * math.sin(self.phase * 1.5)
-            self.glow_intensity = 0.6
+            self.pulse_scale = 1.0 + 0.025 * math.sin(self.phase * 1.4)
+            self.glow_intensity = 0.65
         elif self.state == "listening":
-            # High-energy responsive audio wave pulse
-            self.pulse_scale = 1.0 + 0.09 * math.sin(self.phase * 4.2)
+            self.pulse_scale = 1.0 + 0.08 * math.sin(self.phase * 4.0)
             self.glow_intensity = 0.95
         elif self.state == "thinking":
-            # Smooth cosmic breathing
-            self.pulse_scale = 1.0 + 0.05 * math.cos(self.phase * 2.8)
-            self.glow_intensity = 0.90
-        elif self.state == "speaking":
-            # Voice-amplitude bounce
-            self.pulse_scale = 1.0 + 0.12 * abs(math.sin(self.phase * 5.5))
-            self.glow_intensity = 0.95
-        elif self.state == "seeing":
-            # Controlled cybernetic pulse
-            self.pulse_scale = 1.0 + 0.04 * math.sin(self.phase * 2.0)
+            self.pulse_scale = 1.0 + 0.045 * math.cos(self.phase * 2.8)
             self.glow_intensity = 0.88
+        elif self.state == "speaking":
+            self.pulse_scale = 1.0 + 0.12 * abs(math.sin(self.phase * 5.2))
+            self.glow_intensity = 0.96
+        elif self.state == "seeing":
+            self.pulse_scale = 1.0 + 0.035 * math.sin(self.phase * 2.2)
+            self.glow_intensity = 0.90
 
         self.update()
+
+    def _generate_blob_path(self, cx: float, cy: float, base_r: float, wave_amp: float, num_pts: int = 56) -> QPainterPath:
+        """Generates an organic morphing fluid spline path using harmonic surface wave functions."""
+        path = QPainterPath()
+        points = []
+
+        for i in range(num_pts):
+            theta = (2.0 * math.pi * i) / num_pts
+            # Multi-frequency harmonic liquid surface displacement
+            h1 = math.sin(2.0 * theta + self.phase * 2.8)
+            h2 = math.cos(3.0 * theta - self.phase * 1.9) * 0.6
+            h3 = math.sin(5.0 * theta + self.phase * 3.6) * 0.35
+
+            r_eff = base_r + wave_amp * (h1 + h2 + h3)
+            px = cx + r_eff * math.cos(theta)
+            py = cy + r_eff * math.sin(theta)
+            points.append(QPointF(px, py))
+
+        # Construct smooth closed cubic bezier spline through points
+        path.moveTo(points[0])
+        for i in range(num_pts):
+            p0 = points[(i - 1) % num_pts]
+            p1 = points[i]
+            p2 = points[(i + 1) % num_pts]
+            p3 = points[(i + 2) % num_pts]
+
+            # Catmull-Rom to Cubic Bezier control points
+            c1x = p1.x() + (p2.x() - p0.x()) / 6.0
+            c1y = p1.y() + (p2.y() - p0.y()) / 6.0
+            c2x = p2.x() - (p3.x() - p1.x()) / 6.0
+            c2y = p2.y() - (p3.y() - p1.y()) / 6.0
+
+            path.cubicTo(c1x, c1y, c2x, c2y, p2.x(), p2.y())
+
+        path.closeSubpath()
+        return path
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -128,101 +163,117 @@ class SiriOrbWidget(QWidget):
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
-        r = (self.orb_size / 2.0) * self.pulse_scale
+        base_r = (self.orb_size / 2.0) * self.pulse_scale
 
         if self.state == "seeing":
-            self._paint_seeing_state(painter, cx, cy, r)
+            self._paint_seeing_blob(painter, cx, cy, base_r)
         elif self.state == "listening":
-            self._paint_listening_state(painter, cx, cy, r)
+            self._paint_listening_blob(painter, cx, cy, base_r)
         elif self.state == "thinking":
-            self._paint_thinking_state(painter, cx, cy, r)
+            self._paint_thinking_blob(painter, cx, cy, base_r)
         elif self.state == "speaking":
-            self._paint_speaking_state(painter, cx, cy, r)
-        else: # idle
-            self._paint_idle_state(painter, cx, cy, r)
+            self._paint_speaking_blob(painter, cx, cy, base_r)
+        else:
+            self._paint_idle_blob(painter, cx, cy, base_r)
 
     # =========================================================================
-    # LOOK 1: LISTENING (Acoustic shockwaves + Electric Cyan/Azure/Purple Plasma)
+    # LOOK 1: LISTENING (Acoustic Shockwaves + Electric Cyan / Azure Fluid Blob)
     # =========================================================================
-    def _paint_listening_state(self, p: QPainter, cx: float, cy: float, r: float):
+    def _paint_listening_blob(self, p: QPainter, cx: float, cy: float, r: float):
         # 1. Concentric Acoustic Waves Radiating Outward
         for i in range(3):
             wave_progress = ((self.phase * 1.8 + i * 0.33) % 1.0)
-            wave_r = r * (1.05 + wave_progress * 0.42)
+            wave_r = r * (1.08 + wave_progress * 0.44)
             wave_alpha = int(180 * (1.0 - wave_progress))
             pen = QPen(QColor(0, 245, 255, wave_alpha), 1.8)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawEllipse(QRectF(cx - wave_r, cy - wave_r, wave_r * 2, wave_r * 2))
 
-        # 2. Outer Electric Atmosphere Glow
-        grad_outer = QRadialGradient(cx, cy, r * 1.35)
-        grad_outer.setColorAt(0.0, QColor(0, 229, 255, 170))
-        grad_outer.setColorAt(0.5, QColor(99, 102, 241, 100))
+        # 2. Atmospheric Outer Glow
+        grad_outer = QRadialGradient(cx, cy, r * 1.45)
+        grad_outer.setColorAt(0.0, QColor(0, 242, 254, 180))
+        grad_outer.setColorAt(0.5, QColor(147, 51, 234, 90))
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.35, cy - r * 1.35, r * 2.7, r * 2.7))
+        p.drawEllipse(QRectF(cx - r * 1.45, cy - r * 1.45, r * 2.9, r * 2.9))
 
-        # 3. Siri Organic Plasma Core (Multi-Center Radial Blend)
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        
-        # Base Sphere
-        base_grad = QRadialGradient(cx, cy, r)
-        base_grad.setColorAt(0.0, QColor(147, 51, 234, 240))  # Purple
-        base_grad.setColorAt(0.7, QColor(30, 27, 75, 240))
-        base_grad.setColorAt(1.0, QColor(15, 23, 42, 250))
-        p.setBrush(QBrush(base_grad))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        # 3. Organic Fluid Blob
+        wave_amp = r * 0.09
+        blob_path = self._generate_blob_path(cx, cy, r, wave_amp)
 
-        # Orbiting Cyan Plasma Light
+        p.save()
+        p.setClipPath(blob_path)
+
+        # Base Deep Iridescent Sphere
+        base = QRadialGradient(cx, cy, r)
+        base.setColorAt(0.0, QColor(79, 70, 229, 240))  # Indigo
+        base.setColorAt(0.7, QColor(24, 24, 48, 250))
+        base.setColorAt(1.0, QColor(10, 10, 22, 255))
+        p.setBrush(QBrush(base))
+        p.drawRect(self.rect())
+
+        # Orbiting Electric Cyan Plasma Light
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         angle1 = self.phase * 3.5
-        c1x = cx + math.cos(angle1) * (r * 0.38)
-        c1y = cy + math.sin(angle1) * (r * 0.38)
-        p1 = QRadialGradient(c1x, c1y, r * 0.75)
-        p1.setColorAt(0.0, QColor(0, 245, 255, 250))
-        p1.setColorAt(0.6, QColor(0, 122, 255, 160))
+        c1x = cx + math.cos(angle1) * (r * 0.4)
+        c1y = cy + math.sin(angle1) * (r * 0.4)
+        p1 = QRadialGradient(c1x, c1y, r * 0.8)
+        p1.setColorAt(0.0, QColor(0, 245, 255, 255))
+        p1.setColorAt(0.5, QColor(79, 172, 254, 170))
         p1.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(p1))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
 
-        # Orbiting Magenta Plasma Light (Counter-phase)
-        c2x = cx + math.cos(angle1 + math.pi) * (r * 0.38)
-        c2y = cy + math.sin(angle1 + math.pi) * (r * 0.38)
-        p2 = QRadialGradient(c2x, c2y, r * 0.75)
+        # Orbiting Hot Magenta Plasma Light
+        c2x = cx + math.cos(angle1 + math.pi) * (r * 0.4)
+        c2y = cy + math.sin(angle1 + math.pi) * (r * 0.4)
+        p2 = QRadialGradient(c2x, c2y, r * 0.8)
         p2.setColorAt(0.0, QColor(244, 63, 94, 240))
-        p2.setColorAt(0.6, QColor(168, 85, 247, 140))
+        p2.setColorAt(0.5, QColor(168, 85, 247, 150))
         p2.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(p2))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
 
-        # Glass Highlight Cap
+        p.restore()
+
+        # 4. Fluid Edge Fresnel Glow
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        rim_pen = QPen(QColor(0, 245, 255, 220), 2.0)
+        p.setPen(rim_pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(blob_path)
+
         self._draw_glass_specular(p, cx, cy, r)
 
     # =========================================================================
-    # LOOK 2: THINKING (Cosmic Nebula & Swirling Dual-Vortex Ring)
+    # LOOK 2: THINKING (Swirling Cosmic Nebula & Spiral Dual-Vortex Fluid)
     # =========================================================================
-    def _paint_thinking_state(self, p: QPainter, cx: float, cy: float, r: float):
-        # 1. Outer Cosmic Nebula Glow
-        grad_outer = QRadialGradient(cx, cy, r * 1.35)
+    def _paint_thinking_blob(self, p: QPainter, cx: float, cy: float, r: float):
+        grad_outer = QRadialGradient(cx, cy, r * 1.4)
         grad_outer.setColorAt(0.0, QColor(147, 51, 234, 160))
-        grad_outer.setColorAt(0.6, QColor(236, 72, 153, 90))
+        grad_outer.setColorAt(0.6, QColor(236, 72, 153, 80))
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.35, cy - r * 1.35, r * 2.7, r * 2.7))
+        p.drawEllipse(QRectF(cx - r * 1.4, cy - r * 1.4, r * 2.8, r * 2.8))
 
-        # 2. Deep Galaxy Core
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        base_grad = QRadialGradient(cx, cy, r)
-        base_grad.setColorAt(0.0, QColor(15, 23, 42, 240))
-        base_grad.setColorAt(0.8, QColor(30, 27, 75, 240))
-        base_grad.setColorAt(1.0, QColor(10, 10, 20, 250))
-        p.setBrush(QBrush(base_grad))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        wave_amp = r * 0.075
+        blob_path = self._generate_blob_path(cx, cy, r, wave_amp)
 
-        # 3. Rotating Vortex Ring (Smooth Conical Plasma)
+        p.save()
+        p.setClipPath(blob_path)
+
+        # Base Galaxy
+        base = QRadialGradient(cx, cy, r)
+        base.setColorAt(0.0, QColor(24, 16, 48, 250))
+        base.setColorAt(0.8, QColor(15, 12, 30, 250))
+        base.setColorAt(1.0, QColor(8, 6, 16, 255))
+        p.setBrush(QBrush(base))
+        p.drawRect(self.rect())
+
+        # Rotating Vortex Plasma Ring
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         rot_angle = (self.phase * 80) % 360
         conic = QConicalGradient(cx, cy, rot_angle)
@@ -231,77 +282,98 @@ class SiriOrbWidget(QWidget):
         conic.setColorAt(0.66, QColor(99, 102, 241, 240))
         conic.setColorAt(1.0, QColor(168, 85, 247, 240))
         p.setBrush(QBrush(conic))
-        p.drawEllipse(QRectF(cx - r * 0.92, cy - r * 0.92, r * 1.84, r * 1.84))
+        p.drawRect(self.rect())
 
-        # 4. Swirling Internal Galaxy Core
+        # Swirling Center Stardust Core
         core = QRadialGradient(cx, cy, r * 0.55)
-        core.setColorAt(0.0, QColor(255, 255, 255, 220))
+        core.setColorAt(0.0, QColor(255, 255, 255, 230))
         core.setColorAt(0.4, QColor(192, 132, 252, 180))
         core.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(core))
-        p.drawEllipse(QRectF(cx - r * 0.55, cy - r * 0.55, r * 1.1, r * 1.1))
+        p.drawRect(self.rect())
+
+        p.restore()
+
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        rim_pen = QPen(QColor(192, 132, 252, 200), 2.0)
+        p.setPen(rim_pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(blob_path)
 
         self._draw_glass_specular(p, cx, cy, r)
 
     # =========================================================================
-    # LOOK 3: SPEAKING (Warm Sunset Coral, Amber & Voice Amplitude Bounce)
+    # LOOK 3: SPEAKING (Warm Sunset Coral, Amber & Dynamic Liquid Voice Bounce)
     # =========================================================================
-    def _paint_speaking_state(self, p: QPainter, cx: float, cy: float, r: float):
-        # 1. Radiant Sunset Corona
-        grad_outer = QRadialGradient(cx, cy, r * 1.4)
-        grad_outer.setColorAt(0.0, QColor(255, 75, 43, 170))
+    def _paint_speaking_blob(self, p: QPainter, cx: float, cy: float, r: float):
+        grad_outer = QRadialGradient(cx, cy, r * 1.45)
+        grad_outer.setColorAt(0.0, QColor(255, 75, 43, 180))
         grad_outer.setColorAt(0.5, QColor(245, 158, 11, 100))
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.4, cy - r * 1.4, r * 2.8, r * 2.8))
+        p.drawEllipse(QRectF(cx - r * 1.45, cy - r * 1.45, r * 2.9, r * 2.9))
 
-        # 2. Base Sphere
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        wave_amp = r * 0.11
+        blob_path = self._generate_blob_path(cx, cy, r, wave_amp)
+
+        p.save()
+        p.setClipPath(blob_path)
+
         base = QRadialGradient(cx, cy, r)
         base.setColorAt(0.0, QColor(225, 29, 72, 240))
-        base.setColorAt(0.7, QColor(136, 19, 55, 240))
-        base.setColorAt(1.0, QColor(15, 23, 42, 250))
+        base.setColorAt(0.7, QColor(136, 19, 55, 245))
+        base.setColorAt(1.0, QColor(18, 12, 18, 255))
         p.setBrush(QBrush(base))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
 
-        # 3. Dynamic Audio Plasma Heat (Screen Blend)
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         heat_phase = self.phase * 4.0
-        hx = cx + math.cos(heat_phase) * (r * 0.25)
-        hy = cy + math.sin(heat_phase) * (r * 0.25)
+        hx = cx + math.cos(heat_phase) * (r * 0.28)
+        hy = cy + math.sin(heat_phase) * (r * 0.28)
         heat = QRadialGradient(hx, hy, r * 0.85)
-        heat.setColorAt(0.0, QColor(251, 191, 36, 250))  # Bright Amber
-        heat.setColorAt(0.5, QColor(244, 63, 94, 200))   # Hot Rose
+        heat.setColorAt(0.0, QColor(251, 191, 36, 255))  # Amber
+        heat.setColorAt(0.5, QColor(244, 63, 94, 210))   # Hot Coral
         heat.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(heat))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
+
+        p.restore()
+
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        rim_pen = QPen(QColor(251, 191, 36, 220), 2.0)
+        p.setPen(rim_pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(blob_path)
 
         self._draw_glass_specular(p, cx, cy, r)
 
     # =========================================================================
     # LOOK 4: SEEING / VISION (Cyber Emerald, Matrix Mint & Radar Reticle)
     # =========================================================================
-    def _paint_seeing_state(self, p: QPainter, cx: float, cy: float, r: float):
-        # 1. Cyber Emerald Outer Aura
-        grad_outer = QRadialGradient(cx, cy, r * 1.35)
+    def _paint_seeing_blob(self, p: QPainter, cx: float, cy: float, r: float):
+        grad_outer = QRadialGradient(cx, cy, r * 1.4)
         grad_outer.setColorAt(0.0, QColor(16, 185, 129, 180))
-        grad_outer.setColorAt(0.6, QColor(6, 182, 212, 100))
+        grad_outer.setColorAt(0.6, QColor(6, 182, 212, 90))
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.35, cy - r * 1.35, r * 2.7, r * 2.7))
+        p.drawEllipse(QRectF(cx - r * 1.4, cy - r * 1.4, r * 2.8, r * 2.8))
 
-        # 2. Cyber Core
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        wave_amp = r * 0.05
+        blob_path = self._generate_blob_path(cx, cy, r, wave_amp)
+
+        p.save()
+        p.setClipPath(blob_path)
+
         base = QRadialGradient(cx, cy, r)
         base.setColorAt(0.0, QColor(6, 78, 59, 240))
-        base.setColorAt(0.8, QColor(15, 23, 42, 250))
-        base.setColorAt(1.0, QColor(5, 5, 10, 250))
+        base.setColorAt(0.8, QColor(10, 25, 20, 250))
+        base.setColorAt(1.0, QColor(4, 10, 8, 255))
         p.setBrush(QBrush(base))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
 
-        # 3. Rotating Radar Scanner Beam
+        # Rotating Radar Scanner Beam
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         radar_angle = (self.phase * 120) % 360
         conic = QConicalGradient(cx, cy, radar_angle)
@@ -310,23 +382,21 @@ class SiriOrbWidget(QWidget):
         conic.setColorAt(0.4, QColor(0, 0, 0, 0))
         conic.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(conic))
-        p.drawEllipse(QRectF(cx - r * 0.95, cy - r * 0.95, r * 1.9, r * 1.9))
+        p.drawRect(self.rect())
 
-        # 4. Concentric Targeting Aperture Ring & Ticks
+        # Concentric Targeting Aperture Ring
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        reticle_pen = QPen(QColor(52, 211, 153, 220), 1.5)
+        reticle_pen = QPen(QColor(52, 211, 153, 220), 1.6)
         p.setPen(reticle_pen)
         p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawEllipse(QRectF(cx - r * 0.7, cy - r * 0.7, r * 1.4, r * 1.4))
+        p.drawEllipse(QRectF(cx - r * 0.65, cy - r * 0.65, r * 1.3, r * 1.3))
 
-        # 4 Precision Tick Marks
-        tick_len = r * 0.15
-        p.drawLine(cx, cy - r * 0.75, cx, cy - r * 0.75 + tick_len)
-        p.drawLine(cx, cy + r * 0.75 - tick_len, cx, cy + r * 0.75)
-        p.drawLine(cx - r * 0.75, cy, cx - r * 0.75 + tick_len, cy)
-        p.drawLine(cx + r * 0.75 - tick_len, cy, cx + r * 0.75, cy)
+        tick = r * 0.15
+        p.drawLine(cx, cy - r * 0.7, cx, cy - r * 0.7 + tick)
+        p.drawLine(cx, cy + r * 0.7 - tick, cx, cy + r * 0.7)
+        p.drawLine(cx - r * 0.7, cy, cx - r * 0.7 + tick, cy)
+        p.drawLine(cx + r * 0.7 - tick, cy, cx + r * 0.7, cy)
 
-        # Center Optical Pupil
         pupil = QRadialGradient(cx, cy, r * 0.28)
         pupil.setColorAt(0.0, QColor(255, 255, 255, 240))
         pupil.setColorAt(0.5, QColor(52, 211, 153, 190))
@@ -335,57 +405,68 @@ class SiriOrbWidget(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QRectF(cx - r * 0.28, cy - r * 0.28, r * 0.56, r * 0.56))
 
+        p.restore()
+
+        rim_pen = QPen(QColor(52, 211, 153, 220), 2.0)
+        p.setPen(rim_pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(blob_path)
+
         self._draw_glass_specular(p, cx, cy, r)
 
     # =========================================================================
-    # LOOK 5: IDLE (Tranquil Iridescent Glass Orb)
+    # LOOK 5: IDLE (Tranquil Iridescent Liquid Droplet)
     # =========================================================================
-    def _paint_idle_state(self, p: QPainter, cx: float, cy: float, r: float):
-        grad_outer = QRadialGradient(cx, cy, r * 1.3)
-        grad_outer.setColorAt(0.0, QColor(99, 102, 241, 120))
+    def _paint_idle_blob(self, p: QPainter, cx: float, cy: float, r: float):
+        grad_outer = QRadialGradient(cx, cy, r * 1.35)
+        grad_outer.setColorAt(0.0, QColor(99, 102, 241, 130))
         grad_outer.setColorAt(0.6, QColor(236, 72, 153, 60))
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.3, cy - r * 1.3, r * 2.6, r * 2.6))
+        p.drawEllipse(QRectF(cx - r * 1.35, cy - r * 1.35, r * 2.7, r * 2.7))
 
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        wave_amp = r * 0.045
+        blob_path = self._generate_blob_path(cx, cy, r, wave_amp)
+
+        p.save()
+        p.setClipPath(blob_path)
+
         base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(99, 102, 241, 230))
-        base.setColorAt(0.7, QColor(30, 27, 75, 230))
-        base.setColorAt(1.0, QColor(15, 23, 42, 240))
+        base.setColorAt(0.0, QColor(79, 70, 229, 230))
+        base.setColorAt(0.7, QColor(24, 20, 50, 240))
+        base.setColorAt(1.0, QColor(12, 10, 24, 255))
         p.setBrush(QBrush(base))
-        p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        p.drawRect(self.rect())
 
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
-        rot_angle = (self.phase * 30) % 360
+        rot_angle = (self.phase * 35) % 360
         conic = QConicalGradient(cx, cy, rot_angle)
-        conic.setColorAt(0.0, QColor(0, 242, 254, 180))
-        conic.setColorAt(0.5, QColor(236, 72, 153, 180))
-        conic.setColorAt(1.0, QColor(0, 242, 254, 180))
+        conic.setColorAt(0.0, QColor(0, 242, 254, 190))
+        conic.setColorAt(0.5, QColor(236, 72, 153, 190))
+        conic.setColorAt(1.0, QColor(0, 242, 254, 190))
         p.setBrush(QBrush(conic))
-        p.drawEllipse(QRectF(cx - r * 0.95, cy - r * 0.95, r * 1.9, r * 1.9))
+        p.drawRect(self.rect())
+
+        p.restore()
+
+        rim_pen = QPen(QColor(168, 85, 247, 180), 1.8)
+        p.setPen(rim_pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(blob_path)
 
         self._draw_glass_specular(p, cx, cy, r)
 
     def _draw_glass_specular(self, p: QPainter, cx: float, cy: float, r: float):
         """Draws curvature depth and specular glass reflection cap."""
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        
-        # Specular light reflection on top-left
         specular = QRadialGradient(cx - r * 0.32, cy - r * 0.35, r * 0.55)
-        specular.setColorAt(0.0, QColor(255, 255, 255, 175))
+        specular.setColorAt(0.0, QColor(255, 255, 255, 180))
         specular.setColorAt(0.35, QColor(255, 255, 255, 45))
         specular.setColorAt(1.0, QColor(255, 255, 255, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(specular))
         p.drawEllipse(QRectF(cx - r * 0.65, cy - r * 0.7, r * 0.85, r * 0.6))
-
-        # Thin outer chromatic edge rim
-        rim_pen = QPen(QColor(255, 255, 255, 90), 1.0)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawEllipse(QRectF(cx - r * 0.98, cy - r * 0.98, r * 1.96, r * 1.96))
 
     # --- Mouse & Interaction Events ---
     def mousePressEvent(self, event):
@@ -396,7 +477,6 @@ class SiriOrbWidget(QWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # If mouse didn't drag more than 5px, treat as a click to talk
             if hasattr(self, '_press_pos'):
                 dist = (event.globalPosition().toPoint() - self._press_pos).manhattanLength()
                 if dist < 6:
@@ -413,7 +493,6 @@ class SiriOrbWidget(QWidget):
             self.request_circle_search.emit()
 
     def contextMenuEvent(self, event):
-        self.reveal()
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
@@ -450,8 +529,8 @@ class SiriOrbWidget(QWidget):
         install_act = menu.addAction("📥 Install to System (Start Menu & Startup)")
         install_act.triggered.connect(lambda: self.request_install.emit())
 
-        reset_pos_act = menu.addAction("📍 Reset to Bottom-Left")
-        reset_pos_act.triggered.connect(self._dock_to_bottom_left)
+        reset_pos_act = menu.addAction("📍 Reset to Top-Right")
+        reset_pos_act.triggered.connect(self._dock_to_top_right)
 
         menu.addSeparator()
 
@@ -461,7 +540,6 @@ class SiriOrbWidget(QWidget):
         menu.exec(event.globalPos())
 
     def _prompt_dialog(self):
-        self.reveal()
         text, ok = QInputDialog.getText(
             self,
             "Titanium Assistant",

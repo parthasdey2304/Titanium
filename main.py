@@ -49,7 +49,7 @@ class TitaniumApp(QObject):
         self.orb.request_toggle_listening.connect(self.toggle_live_session)
 
         self.update_orb_state.connect(self.orb.set_state)
-        self.show_response_signal.connect(self.code_viewer.display_content)
+        self.show_response_signal.connect(self._on_show_response)
         self.start_circle_search_signal.connect(self.overlay.trigger)
 
         # 4. Bind Live Client State Callbacks
@@ -71,6 +71,10 @@ class TitaniumApp(QObject):
         self.tray.show()
 
         print("[Titanium] Initialized and running in system tray with Wake Word.")
+
+    def _on_show_response(self, text: str, title: str):
+        """Displays code or rich response card docked directly below the Siri Orb."""
+        self.code_viewer.display_below_orb(text, self.orb.geometry(), title)
 
     def toggle_orb_visibility(self):
         if self.orb.isVisible():
@@ -173,8 +177,9 @@ class TitaniumApp(QObject):
 
         def worker():
             answer = self.router.handle_user_query(prompt)
-            if "```" in answer or len(answer) > 250:
-                self.show_response_signal.emit(answer, "Titanium Response")
+            is_code_request = any(w in prompt.lower() for w in ["code", "python", "script", "function", "program", "sql", "html", "write", "create"])
+            if is_code_request or "```" in answer or len(answer) > 200:
+                self.show_response_signal.emit(answer, "Titanium Code & Intelligence")
             self.speak_with_pause(answer)
 
         threading.Thread(target=worker, daemon=True).start()
