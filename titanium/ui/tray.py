@@ -31,7 +31,12 @@ class TitaniumTrayIcon(QSystemTrayIcon):
         self.activated.connect(self._on_activated)
 
     def _create_tray_pixmap(self) -> QIcon:
-        """Generates a dynamic 32x32 glowing orb icon for the tray."""
+        """Loads the high-resolution AmazingUI Sphere icon for the tray."""
+        root_dir = Path(__file__).resolve().parent.parent.parent
+        icon_path = root_dir / "titanium.ico"
+        if icon_path.exists():
+            return QIcon(str(icon_path))
+
         pixmap = QPixmap(32, 32)
         pixmap.fill(QColor(0, 0, 0, 0))
         painter = QPainter(pixmap)

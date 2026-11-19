@@ -1,5 +1,6 @@
 import math
 import sys
+from pathlib import Path
 from typing import Optional, Callable
 
 from PySide6.QtWidgets import (
@@ -10,7 +11,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QPainter, QColor, QRadialGradient, QConicalGradient,
-    QPen, QBrush, QCursor, QPainterPath
+    QPen, QBrush, QCursor, QPainterPath, QImage
 )
 
 # Exact color palettes from AmazingUI's "Sphere for AI Assistant"
@@ -62,6 +63,10 @@ class SiriOrbWidget(QWidget):
         # States: 'idle', 'listening', 'thinking', 'speaking', 'seeing'
         self.state = "idle"
         self.screen_sharing = False
+
+        # Load authentic AmazingUI 3D Sphere texture
+        asset_path = Path(__file__).resolve().parent.parent / "assets" / "amazingui_sphere.png"
+        self.sphere_img = QImage(str(asset_path)) if asset_path.exists() else None
 
         # Physics & Animation Variables
         self.phase = 0.0
@@ -171,6 +176,7 @@ class SiriOrbWidget(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
@@ -186,6 +192,14 @@ class SiriOrbWidget(QWidget):
             self._paint_speaking_sphere(painter, cx, cy, base_r)
         else: # idle
             self._paint_idle_sphere(painter, cx, cy, base_r)
+
+    def _draw_amazingui_texture(self, p: QPainter, cx: float, cy: float, r: float) -> bool:
+        """Renders the authentic photorealistic AmazingUI Sphere 3D texture."""
+        if hasattr(self, 'sphere_img') and self.sphere_img is not None and not self.sphere_img.isNull():
+            target_rect = QRectF(cx - r, cy - r, r * 2.0, r * 2.0)
+            p.drawImage(target_rect, self.sphere_img)
+            return True
+        return False
 
     # =========================================================================
     # 1. LISTENING MODE (AmazingUI Electric Blue & Cyan Energy Waves)
@@ -204,55 +218,37 @@ class SiriOrbWidget(QWidget):
         # 2. Outer Atmospheric Velvet Bloom
         grad_outer = QRadialGradient(cx, cy, r * 1.45)
         grad_outer.setColorAt(0.0, QColor(39, 28, 213, 175))   # Electric Blue
-        grad_outer.setColorAt(0.5, QColor(190, 27, 208, 90))  # Bright Violet
+        grad_outer.setColorAt(0.5, QColor(67, 167, 223, 90))   # Cyan Sky
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
         p.drawEllipse(QRectF(cx - r * 1.45, cy - r * 1.45, r * 2.9, r * 2.9))
 
-        # 3. Organic Spherical Body
-        orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.04)
+        # 3. Base AmazingUI 3D Sphere
+        if not self._draw_amazingui_texture(p, cx, cy, r):
+            orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.04)
+            p.save()
+            p.setClipPath(orb_path)
+            base = QRadialGradient(cx, cy, r)
+            base.setColorAt(0.0, QColor(20, 7, 92, 245))
+            base.setColorAt(0.7, QColor(10, 4, 45, 250))
+            base.setColorAt(1.0, QColor(3, 1, 15, 255))
+            p.setBrush(QBrush(base))
+            p.drawRect(self.rect())
+            p.restore()
+
+        # 4. Cyan Energy Core Flare
         p.save()
-        p.setClipPath(orb_path)
-
-        # Midnight Base Sphere
-        base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(20, 7, 92, 245))   # Midnight Blue
-        base.setColorAt(0.7, QColor(10, 4, 45, 250))
-        base.setColorAt(1.0, QColor(3, 1, 15, 255))
-        p.setBrush(QBrush(base))
-        p.drawRect(self.rect())
-
-        # Dual Luminous Plasma Bodies (Electric Blue & Cyan Sky)
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
-        rot = self.phase * 3.4
-        c1x = cx + math.cos(rot) * (r * 0.38)
-        c1y = cy + math.sin(rot) * (r * 0.38)
-        p1 = QRadialGradient(c1x, c1y, r * 0.8)
-        p1.setColorAt(0.0, QColor(67, 167, 223, 255))  # Cyan Sky
-        p1.setColorAt(0.5, QColor(39, 28, 213, 200))  # Electric Blue
-        p1.setColorAt(1.0, QColor(0, 0, 0, 0))
-        p.setBrush(QBrush(p1))
-        p.drawRect(self.rect())
-
-        # Counter-Phase Bright Violet & Magenta Flare
-        c2x = cx + math.cos(rot + math.pi) * (r * 0.38)
-        c2y = cy + math.sin(rot + math.pi) * (r * 0.38)
-        p2 = QRadialGradient(c2x, c2y, r * 0.8)
-        p2.setColorAt(0.0, QColor(203, 27, 193, 235))  # Neon Magenta
-        p2.setColorAt(0.5, QColor(190, 27, 208, 160))  # Bright Violet
-        p2.setColorAt(1.0, QColor(0, 0, 0, 0))
-        p.setBrush(QBrush(p2))
-        p.drawRect(self.rect())
-
+        pulse_r = r * (0.4 + 0.12 * math.sin(self.phase * 5.5))
+        core_grad = QRadialGradient(cx, cy, pulse_r)
+        core_grad.setColorAt(0.0, QColor(67, 167, 223, 230))
+        core_grad.setColorAt(0.5, QColor(39, 28, 213, 140))
+        core_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(QBrush(core_grad))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - pulse_r, cy - pulse_r, pulse_r * 2, pulse_r * 2))
         p.restore()
-
-        # 4. Translucent Chromatic Edge Rim
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        rim_pen = QPen(QColor(67, 167, 223, 220), 1.8)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(orb_path)
 
         self._draw_amazingui_specular(p, cx, cy, r)
 
@@ -268,44 +264,43 @@ class SiriOrbWidget(QWidget):
         p.setBrush(QBrush(grad_outer))
         p.drawEllipse(QRectF(cx - r * 1.45, cy - r * 1.45, r * 2.9, r * 2.9))
 
-        orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.035)
+        # Base AmazingUI 3D Sphere
+        if not self._draw_amazingui_texture(p, cx, cy, r):
+            orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.035)
+            p.save()
+            p.setClipPath(orb_path)
+            base = QRadialGradient(cx, cy, r)
+            base.setColorAt(0.0, QColor(31, 11, 87, 245))
+            base.setColorAt(0.7, QColor(18, 5, 52, 250))
+            base.setColorAt(1.0, QColor(5, 2, 16, 255))
+            p.setBrush(QBrush(base))
+            p.drawRect(self.rect())
+            p.restore()
+
+        # AmazingUI Cosmic Vortex Swirl & Glowing Core Knot
         p.save()
-        p.setClipPath(orb_path)
-
-        # Deep Cosmic Base
-        base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(31, 11, 87, 245))   # Deep Cosmic Purple
-        base.setColorAt(0.7, QColor(18, 5, 52, 250))
-        base.setColorAt(1.0, QColor(5, 2, 16, 255))
-        p.setBrush(QBrush(base))
-        p.drawRect(self.rect())
-
-        # AmazingUI Cosmic Vortex Swirl
+        clip_path = QPainterPath()
+        clip_path.addEllipse(QRectF(cx - r, cy - r, r * 2.0, r * 2.0))
+        p.setClipPath(clip_path)
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         rot_angle = (self.phase * 75) % 360
         conic = QConicalGradient(cx, cy, rot_angle)
-        conic.setColorAt(0.0, QColor(218, 38, 68, 240))   # Active Coral Red
-        conic.setColorAt(0.33, QColor(203, 27, 193, 240)) # Neon Magenta
-        conic.setColorAt(0.66, QColor(68, 13, 168, 240))  # Royal Violet
-        conic.setColorAt(1.0, QColor(218, 38, 68, 240))
+        conic.setColorAt(0.0, QColor(218, 38, 68, 170))   # Active Coral Red
+        conic.setColorAt(0.33, QColor(203, 27, 193, 170)) # Neon Magenta
+        conic.setColorAt(0.66, QColor(68, 13, 168, 150))  # Royal Violet
+        conic.setColorAt(1.0, QColor(218, 38, 68, 170))
         p.setBrush(QBrush(conic))
-        p.drawRect(self.rect())
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7))
 
-        # Radiant Center Core
-        core = QRadialGradient(cx, cy, r * 0.5)
-        core.setColorAt(0.0, QColor(255, 255, 255, 225))
-        core.setColorAt(0.45, QColor(203, 27, 193, 180))
+        # Radiant Center Core Knot
+        core = QRadialGradient(cx, cy, r * 0.45)
+        core.setColorAt(0.0, QColor(255, 255, 255, 230))
+        core.setColorAt(0.45, QColor(203, 27, 193, 150))
         core.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(core))
-        p.drawRect(self.rect())
-
+        p.drawEllipse(QRectF(cx - r * 0.45, cy - r * 0.45, r * 0.9, r * 0.9))
         p.restore()
-
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        rim_pen = QPen(QColor(203, 27, 193, 215), 1.8)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(orb_path)
 
         self._draw_amazingui_specular(p, cx, cy, r)
 
@@ -321,35 +316,32 @@ class SiriOrbWidget(QWidget):
         p.setBrush(QBrush(grad_outer))
         p.drawEllipse(QRectF(cx - r * 1.5, cy - r * 1.5, r * 3.0, r * 3.0))
 
-        orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.05)
+        # Base AmazingUI 3D Sphere
+        if not self._draw_amazingui_texture(p, cx, cy, r):
+            orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.05)
+            p.save()
+            p.setClipPath(orb_path)
+            base = QRadialGradient(cx, cy, r)
+            base.setColorAt(0.0, QColor(218, 38, 68, 245))
+            base.setColorAt(1.0, QColor(15, 5, 8, 255))
+            p.setBrush(QBrush(base))
+            p.drawRect(self.rect())
+            p.restore()
+
+        # Warm voice-resonance core
         p.save()
-        p.setClipPath(orb_path)
-
-        base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(218, 38, 68, 245))  # Active Coral
-        base.setColorAt(0.7, QColor(120, 15, 35, 250))
-        base.setColorAt(1.0, QColor(15, 5, 8, 255))
-        p.setBrush(QBrush(base))
-        p.drawRect(self.rect())
-
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         heat_phase = self.phase * 4.2
-        hx = cx + math.cos(heat_phase) * (r * 0.28)
-        hy = cy + math.sin(heat_phase) * (r * 0.28)
-        heat = QRadialGradient(hx, hy, r * 0.85)
-        heat.setColorAt(0.0, QColor(251, 191, 36, 255))  # Amber
-        heat.setColorAt(0.5, QColor(233, 46, 38, 210))   # Vivid Red
+        hx = cx + math.cos(heat_phase) * (r * 0.22)
+        hy = cy + math.sin(heat_phase) * (r * 0.22)
+        heat = QRadialGradient(hx, hy, r * 0.75)
+        heat.setColorAt(0.0, QColor(251, 191, 36, 210))  # Amber
+        heat.setColorAt(0.5, QColor(233, 46, 38, 150))   # Vivid Red
         heat.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(heat))
-        p.drawRect(self.rect())
-
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(hx - r * 0.5, hy - r * 0.5, r, r))
         p.restore()
-
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        rim_pen = QPen(QColor(251, 191, 36, 220), 1.8)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(orb_path)
 
         self._draw_amazingui_specular(p, cx, cy, r)
 
@@ -365,29 +357,32 @@ class SiriOrbWidget(QWidget):
         p.setBrush(QBrush(grad_outer))
         p.drawEllipse(QRectF(cx - r * 1.4, cy - r * 1.4, r * 2.8, r * 2.8))
 
-        orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.025)
+        # Base AmazingUI 3D Sphere
+        if not self._draw_amazingui_texture(p, cx, cy, r):
+            orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.025)
+            p.save()
+            p.setClipPath(orb_path)
+            base = QRadialGradient(cx, cy, r)
+            base.setColorAt(0.0, QColor(6, 78, 59, 240))
+            base.setColorAt(1.0, QColor(3, 10, 8, 255))
+            p.setBrush(QBrush(base))
+            p.drawRect(self.rect())
+            p.restore()
+
         p.save()
-        p.setClipPath(orb_path)
-
-        base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(6, 78, 59, 240))
-        base.setColorAt(0.8, QColor(8, 28, 22, 250))
-        base.setColorAt(1.0, QColor(3, 10, 8, 255))
-        p.setBrush(QBrush(base))
-        p.drawRect(self.rect())
-
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
         radar_angle = (self.phase * 120) % 360
         conic = QConicalGradient(cx, cy, radar_angle)
-        conic.setColorAt(0.0, QColor(52, 211, 153, 240))
-        conic.setColorAt(0.2, QColor(67, 167, 223, 140))
+        conic.setColorAt(0.0, QColor(52, 211, 153, 200))
+        conic.setColorAt(0.2, QColor(67, 167, 223, 100))
         conic.setColorAt(0.4, QColor(0, 0, 0, 0))
         conic.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(conic))
-        p.drawRect(self.rect())
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - r * 0.9, cy - r * 0.9, r * 1.8, r * 1.8))
+        p.restore()
 
         # Targeting reticle
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         reticle_pen = QPen(QColor(52, 211, 153, 220), 1.6)
         p.setPen(reticle_pen)
         p.setBrush(Qt.BrushStyle.NoBrush)
@@ -407,13 +402,6 @@ class SiriOrbWidget(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QRectF(cx - r * 0.28, cy - r * 0.28, r * 0.56, r * 0.56))
 
-        p.restore()
-
-        rim_pen = QPen(QColor(52, 211, 153, 220), 1.8)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(orb_path)
-
         self._draw_amazingui_specular(p, cx, cy, r)
 
     # =========================================================================
@@ -421,43 +409,26 @@ class SiriOrbWidget(QWidget):
     # =========================================================================
     def _paint_idle_sphere(self, p: QPainter, cx: float, cy: float, r: float):
         # Velvet & Indigo Ambient Corona
-        grad_outer = QRadialGradient(cx, cy, r * 1.4)
-        grad_outer.setColorAt(0.0, QColor(48, 63, 159, 140))  # Indigo Blue
-        grad_outer.setColorAt(0.6, QColor(75, 40, 82, 70))    # Muted Plum
+        grad_outer = QRadialGradient(cx, cy, r * 1.35)
+        grad_outer.setColorAt(0.0, QColor(39, 28, 213, 110))  # Electric Blue bloom
+        grad_outer.setColorAt(0.6, QColor(190, 27, 208, 45))   # Bright Violet
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.4, cy - r * 1.4, r * 2.8, r * 2.8))
+        p.drawEllipse(QRectF(cx - r * 1.35, cy - r * 1.35, r * 2.7, r * 2.7))
 
-        orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.02)
-        p.save()
-        p.setClipPath(orb_path)
-
-        # Deep Velvet Base
-        base = QRadialGradient(cx, cy, r)
-        base.setColorAt(0.0, QColor(19, 27, 91, 245))   # Deep Navy
-        base.setColorAt(0.7, QColor(12, 16, 55, 250))
-        base.setColorAt(1.0, QColor(4, 5, 18, 255))
-        p.setBrush(QBrush(base))
-        p.drawRect(self.rect())
-
-        # Internal Living Energy Drift (Soft Orchid & Electric Indigo)
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
-        rot_angle = (self.phase * 30) % 360
-        conic = QConicalGradient(cx, cy, rot_angle)
-        conic.setColorAt(0.0, QColor(152, 95, 143, 200))  # Soft Orchid
-        conic.setColorAt(0.5, QColor(67, 167, 223, 180))  # Cyan Sky
-        conic.setColorAt(1.0, QColor(152, 95, 143, 200))
-        p.setBrush(QBrush(conic))
-        p.drawRect(self.rect())
-
-        p.restore()
-
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        rim_pen = QPen(QColor(152, 95, 143, 170), 1.6)
-        p.setPen(rim_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(orb_path)
+        # Base AmazingUI 3D Sphere
+        if not self._draw_amazingui_texture(p, cx, cy, r):
+            orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.02)
+            p.save()
+            p.setClipPath(orb_path)
+            base = QRadialGradient(cx, cy, r)
+            base.setColorAt(0.0, QColor(19, 27, 91, 245))
+            base.setColorAt(0.7, QColor(12, 16, 55, 250))
+            base.setColorAt(1.0, QColor(4, 5, 18, 255))
+            p.setBrush(QBrush(base))
+            p.drawRect(self.rect())
+            p.restore()
 
         self._draw_amazingui_specular(p, cx, cy, r)
 

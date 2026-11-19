@@ -209,8 +209,21 @@ class TitaniumApp(QObject):
         threading.Thread(target=hotkey_thread, daemon=True).start()
 
 def main():
+    # Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Titanium.AI.Assistant")
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False) # Keep running in system tray
+    
+    from pathlib import Path
+    from PySide6.QtGui import QIcon
+    icon_path = Path(__file__).resolve().parent / "titanium.ico"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     
     titanium_controller = TitaniumApp()
     

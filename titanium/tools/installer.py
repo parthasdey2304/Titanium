@@ -113,6 +113,12 @@ $Shortcut.Save()
         # 3. Create Desktop Shortcut
         desktop_ok = cls.create_shortcut(paths["desktop_lnk"])
 
+        # 4. Refresh Windows Icon Cache so high-res icon reflects immediately
+        try:
+            subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, timeout=5)
+        except Exception:
+            pass
+
         success = start_ok and (reg_ok or startup_ok)
         return {
             "success": success,
