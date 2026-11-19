@@ -209,9 +209,18 @@ class TitaniumApp(QObject):
         threading.Thread(target=hotkey_thread, daemon=True).start()
 
 def main():
-    # Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
+    import ctypes
+
+    # 1. Single-Instance Guard: Ensure only ONE Titanium instance and ONE Orb can ever exist
+    mutex_name = "Global\\Titanium_AI_Assistant_SingleInstance_Mutex"
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+    last_error = ctypes.windll.kernel32.GetLastError()
+    if last_error == 183: # ERROR_ALREADY_EXISTS
+        print("[Titanium] Another instance of Titanium is already running. Exiting.", flush=True)
+        sys.exit(0)
+
+    # 2. Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
     try:
-        import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Titanium.AI.Assistant")
     except Exception:
         pass

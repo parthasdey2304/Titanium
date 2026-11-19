@@ -226,29 +226,19 @@ class SiriOrbWidget(QWidget):
         return False
 
     # =========================================================================
-    # 1. LISTENING MODE (AmazingUI Electric Blue & Cyan Energy Waves)
+    # 1. LISTENING MODE (Clean AmazingUI Sphere with subtle ambient breath - NO blue rings)
     # =========================================================================
     def _paint_listening_sphere(self, p: QPainter, cx: float, cy: float, r: float):
-        # 1. Radiant Acoustic Shockwave Rings
-        for i in range(3):
-            wave_prog = ((self.phase * 1.8 + i * 0.33) % 1.0)
-            wave_r = r * (1.06 + wave_prog * 0.45)
-            wave_alpha = int(190 * (1.0 - wave_prog))
-            wave_pen = QPen(QColor(67, 167, 223, wave_alpha), 1.8)
-            p.setPen(wave_pen)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QRectF(cx - wave_r, cy - wave_r, wave_r * 2, wave_r * 2))
-
-        # 2. Outer Atmospheric Velvet Bloom
-        grad_outer = QRadialGradient(cx, cy, r * 1.45)
-        grad_outer.setColorAt(0.0, QColor(39, 28, 213, 175))   # Electric Blue
-        grad_outer.setColorAt(0.5, QColor(67, 167, 223, 90))   # Cyan Sky
+        # 1. Soft Outer Atmospheric Velvet Bloom (no concentric rings)
+        grad_outer = QRadialGradient(cx, cy, r * 1.3)
+        grad_outer.setColorAt(0.0, QColor(39, 28, 213, 110))   # Electric Blue
+        grad_outer.setColorAt(0.6, QColor(67, 167, 223, 40))   # Soft Cyan
         grad_outer.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(grad_outer))
-        p.drawEllipse(QRectF(cx - r * 1.45, cy - r * 1.45, r * 2.9, r * 2.9))
+        p.drawEllipse(QRectF(cx - r * 1.3, cy - r * 1.3, r * 2.6, r * 2.6))
 
-        # 3. Base AmazingUI 3D Sphere
+        # 2. Base AmazingUI 3D Sphere Video Frame
         if not self._draw_amazingui_texture(p, cx, cy, r):
             orb_path = self._generate_organic_perimeter(cx, cy, r, r * 0.04)
             p.save()
@@ -260,19 +250,6 @@ class SiriOrbWidget(QWidget):
             p.setBrush(QBrush(base))
             p.drawRect(self.rect())
             p.restore()
-
-        # 4. Cyan Energy Core Flare
-        p.save()
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Screen)
-        pulse_r = r * (0.4 + 0.12 * math.sin(self.phase * 5.5))
-        core_grad = QRadialGradient(cx, cy, pulse_r)
-        core_grad.setColorAt(0.0, QColor(67, 167, 223, 230))
-        core_grad.setColorAt(0.5, QColor(39, 28, 213, 140))
-        core_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-        p.setBrush(QBrush(core_grad))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QRectF(cx - pulse_r, cy - pulse_r, pulse_r * 2, pulse_r * 2))
-        p.restore()
 
         self._draw_amazingui_specular(p, cx, cy, r)
 
