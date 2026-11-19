@@ -1,0 +1,10 @@
+# Titanium Lightweight Core Dependencies
+google-genai>=2.3.0
+python-dotenv>=1.0.0
+PySide6-Essentials>=6.6.0
+mss>=9.0.1
+pillow>=10.0.0
+requests>=2.31.0
+sounddevice>=0.4.6
+numpy>=1.26.0
+pynput>=1.7.6

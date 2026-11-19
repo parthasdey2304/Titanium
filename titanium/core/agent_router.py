@@ -1,0 +1,165 @@
+import os
+import re
+import json
+from typing import Dict, Any, List, Optional
+from google import genai
+from google.genai import types
+
+from titanium.config import (
+    GEMINI_API_KEY,
+    FLASH_LITE_MODEL,
+    FLASH_REASONING_MODEL,
+    HINGLISH_SYSTEM_PROMPT
+)
+from titanium.memory.sqlite_memory import MemoryManager
+from titanium.tools.app_launcher import WindowsAppLauncher
+from titanium.tools.system_navigator import SystemNavigator
+from titanium.tools.system_tools import lock_workstation, set_system_volume, get_system_info
+
+# Common desktop apps for zero-latency local dispatch
+FAST_APP_NAMES = [
+    "calculator", "calc", "spotify", "chrome", "notepad",
+    "vscode", "code", "settings", "task manager", "taskmgr",
+    "explorer", "file explorer", "cmd", "powershell", "edge", "camera"
+]
+
+class AgentRouter:
+    """Intelligent Model Router with Zero-Latency Local Action Dispatch."""
+
+    def __init__(self, memory: Optional[MemoryManager] = None):
+        self.memory = memory or MemoryManager()
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.chat = None
+        self._init_chat()
+
+    def _init_chat(self):
+        """Initializes continuous chat session for conversational Gemini Live feel."""
+        try:
+            self.chat = self.client.chats.create(
+                model=FLASH_LITE_MODEL,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._build_system_instruction(),
+                    temperature=0.6
+                )
+            )
+        except Exception as e:
+            print(f"[AgentRouter] Chat session init note: {e}")
+
+    def _build_system_instruction(self) -> str:
+        memory_context = self.memory.get_context_prompt()
+        base = HINGLISH_SYSTEM_PROMPT + "\nKeep your spoken replies short, natural, and snappy (1 to 2 sentences) for real-time live conversation."
+        if memory_context:
+            return f"{base}\n\n{memory_context}"
+        return base
+
+    def handle_user_query(self, user_text: str) -> str:
+        """Processes query with instant local app dispatch + Gemini Live conversational response."""
+        self.memory.add_message("user", user_text)
+        lower = user_text.lower().strip()
+
+        # 1. Native Settings App Launcher (Windows, macOS, Linux)
+        if any(w in lower for w in ["setting", "settings", "system settings"]):
+            res = SystemNavigator.open_settings()
+            reply = "Haanji! Maine Settings app open kar diya hai."
+            self.memory.add_message("assistant", reply, model="system-navigator")
+            return reply
+
+        # 2. Folder & File Explorer Navigation
+        is_folder_intent = any(w in lower for w in [
+            "folder", "directory", "downloads", "documents", "desktop",
+            "pictures", "projects", "explorer", "finder", "files"
+        ]) and any(w in lower for w in ["open", "kholo", "chalao", "show", "launch"])
+        
+        if is_folder_intent:
+            res = SystemNavigator.open_folder(lower)
+            reply = f"Maine {res.get('message', 'folder open')} kar diya hai."
+            self.memory.add_message("assistant", reply, model="system-navigator")
+            return reply
+
+        # 3. Open Specific File
+        if any(w in lower for w in ["open file", "file kholo", "file open karo"]):
+            target_file = re.sub(r"(open file|file kholo|file open karo|please)", "", lower).strip()
+            if target_file:
+                res = SystemNavigator.open_file(target_file)
+                reply = f"Maine {res.get('message', target_file)} handle kar diya hai."
+                self.memory.add_message("assistant", reply, model="system-navigator")
+                return reply
+
+        # 4. Zero-Latency Cross-Platform App Launch Detection (< 10ms execution)
+        is_launch_intent = any(w in lower for w in ["open", "launch", "chalao", "kholo", "start", "run"])
+        if is_launch_intent:
+            for app_name in FAST_APP_NAMES:
+                if app_name in lower:
+                    res = SystemNavigator.launch_app(app_name)
+                    print(f"[AgentRouter] Fast launched: {app_name} -> {res}")
+                    clean_name = app_name.capitalize()
+                    reply = f"Haanji! Maine {clean_name} open kar diya hai."
+                    self.memory.add_message("assistant", reply, model="local-fast-tool")
+                    return reply
+
+        # 2. Zero-Latency Windows System Controls
+        if any(w in lower for w in ["lock pc", "lock computer", "lock screen", "pc lock karo"]):
+            lock_workstation()
+            reply = "Maine PC lock kar diya hai."
+            self.memory.add_message("assistant", reply, model="local-fast-tool")
+            return reply
+
+        # 3. Conversational Live Response via Gemini Flash Lite (sub-second response)
+        try:
+            if not self.chat:
+                self._init_chat()
+
+            response = self.chat.send_message(user_text)
+            answer = response.text or "Ji, main sun raha hoon."
+            self.memory.add_message("assistant", answer, model=FLASH_LITE_MODEL)
+            return answer
+        except Exception as e:
+            print(f"[AgentRouter] Chat error: {e}, falling back to single turn")
+
+        # Fallback single generation
+        try:
+            res = self.client.models.generate_content(
+                model=FLASH_LITE_MODEL,
+                contents=user_text,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._build_system_instruction(),
+                    temperature=0.6
+                )
+            )
+            ans = res.text or "Maine samajh liya hai."
+            self.memory.add_message("assistant", ans, model=FLASH_LITE_MODEL)
+            return ans
+        except Exception as e:
+            return f"Error: {e}"
+
+    def analyze_image_crop(self, image_bytes: bytes, user_query: str = "Is image mein kya dikh raha hai?") -> str:
+        """Circle to Search vision analysis using Gemini Flash."""
+        try:
+            part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+            prompt = f"{user_query}\nAnswer in natural, clear Hinglish (2-3 sentences max). Highlight key elements found."
+            response = self.client.models.generate_content(
+                model=FLASH_REASONING_MODEL,
+                contents=[part, prompt],
+                config=types.GenerateContentConfig(
+                    system_instruction=self._build_system_instruction(),
+                    temperature=0.4
+                )
+            )
+            res = response.text or "Maine image analyze kiya, lekin koi clear details nahi mili."
+            self.memory.add_message("assistant", f"[Circle to Search]: {res}", model=FLASH_REASONING_MODEL)
+            return res
+        except Exception as e:
+            # Fallback to flash-lite if flash 503
+            try:
+                part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+                response = self.client.models.generate_content(
+                    model=FLASH_LITE_MODEL,
+                    contents=[part, user_query],
+                    config=types.GenerateContentConfig(
+                        system_instruction=self._build_system_instruction(),
+                        temperature=0.4
+                    )
+                )
+                return response.text or "Image analyze ho gayi hai."
+            except Exception as e2:
+                return f"Vision error: {str(e2)}"
