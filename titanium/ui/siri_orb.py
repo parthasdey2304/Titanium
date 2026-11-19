@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Callable
 
+import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QMenu, QApplication, QInputDialog, QLineEdit
 )
@@ -64,7 +65,20 @@ class SiriOrbWidget(QWidget):
         self.state = "idle"
         self.screen_sharing = False
 
-        # Load authentic AmazingUI 3D Sphere texture
+        # Load authentic AmazingUI 3D Sphere video frames (60 FPS)
+        self.video_frames = []
+        self.frame_idx = 0
+        npz_path = Path(__file__).resolve().parent.parent / "assets" / "sphere_frames_160.npz"
+        if npz_path.exists():
+            try:
+                arr = np.load(str(npz_path))['frames']
+                for frame_data in arr:
+                    qimg = QImage(frame_data.data, 160, 160, 160 * 4, QImage.Format.Format_RGBA8888)
+                    self.video_frames.append(qimg.copy())
+            except Exception as e:
+                print(f"[Orb] Error loading video frames: {e}")
+
+        # Static fallback texture
         asset_path = Path(__file__).resolve().parent.parent / "assets" / "amazingui_sphere.png"
         self.sphere_img = QImage(str(asset_path)) if asset_path.exists() else None
 
@@ -112,10 +126,15 @@ class SiriOrbWidget(QWidget):
         self.set_state("seeing" if active else "idle")
 
     def _update_animation(self):
-        """Calculates dynamic living-energy oscillations for AmazingUI Sphere."""
+        """Calculates dynamic living-energy oscillations for AmazingUI Sphere and advances video."""
         self.phase += 0.042
         if self.phase > 1000:
             self.phase = 0.0
+
+        # Advance 60 FPS video frame
+        if self.video_frames:
+            step = 2 if self.state == "thinking" else 1
+            self.frame_idx = (self.frame_idx + step) % len(self.video_frames)
 
         if self.state == "idle":
             # Tranquil living breath
@@ -194,8 +213,13 @@ class SiriOrbWidget(QWidget):
             self._paint_idle_sphere(painter, cx, cy, base_r)
 
     def _draw_amazingui_texture(self, p: QPainter, cx: float, cy: float, r: float) -> bool:
-        """Renders the authentic photorealistic AmazingUI Sphere 3D texture."""
-        if hasattr(self, 'sphere_img') and self.sphere_img is not None and not self.sphere_img.isNull():
+        """Paints the current frame of the authentic AmazingUI Sphere video."""
+        if self.video_frames:
+            current_img = self.video_frames[self.frame_idx]
+            target_rect = QRectF(cx - r, cy - r, r * 2.0, r * 2.0)
+            p.drawImage(target_rect, current_img)
+            return True
+        elif hasattr(self, 'sphere_img') and self.sphere_img is not None and not self.sphere_img.isNull():
             target_rect = QRectF(cx - r, cy - r, r * 2.0, r * 2.0)
             p.drawImage(target_rect, self.sphere_img)
             return True
