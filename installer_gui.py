@@ -251,7 +251,6 @@ class TitaniumInstallerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Titanium Virtual Assistant - Setup")
-        self.setFixedSize(580, 600)
 
         # Set App Icon
         icon_path = Path(__file__).resolve().parent / "titanium.ico"
@@ -259,6 +258,7 @@ class TitaniumInstallerWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
 
         self.existing_dir = self._detect_existing_installation()
+        self.setFixedSize(580, 700 if self.existing_dir else 620)
         self._apply_dark_style()
         self._init_ui()
 
@@ -282,7 +282,6 @@ class TitaniumInstallerWindow(QMainWindow):
                 background-color: rgba(56, 189, 248, 0.08);
                 border: 1px solid rgba(56, 189, 248, 0.28);
                 border-radius: 8px;
-                padding: 10px 14px;
             }}
             QLabel#headerTitle {{
                 font-size: 20px;
@@ -442,10 +441,12 @@ class TitaniumInstallerWindow(QMainWindow):
         if self.existing_dir:
             alert = QFrame()
             alert.setObjectName("alertCard")
+            alert.setMinimumHeight(60)
             alert_layout = QHBoxLayout(alert)
-            alert_layout.setContentsMargins(10, 6, 10, 6)
-            alert_lbl = QLabel(f"ℹ️ Existing installation detected at:\n{str(self.existing_dir)}")
-            alert_lbl.setStyleSheet("color: #38BDF8; font-size: 12px; font-weight: 500;")
+            alert_layout.setContentsMargins(14, 10, 14, 10)
+            alert_lbl = QLabel(f"ℹ️  Existing installation detected at:\n{str(self.existing_dir)}")
+            alert_lbl.setWordWrap(True)
+            alert_lbl.setStyleSheet("color: #38BDF8; font-size: 12px; font-weight: 500; line-height: 18px;")
             alert_layout.addWidget(alert_lbl)
             card_layout.addWidget(alert)
 
