@@ -57,10 +57,13 @@ class ApiKeySetupDialog(QDialog):
             QLineEdit {
                 background-color: #1E1F20;
                 color: #FFFFFF;
-                border: 1px solid #3C4043;
+                border: 1.5px solid #3C4043;
                 border-radius: 8px;
-                padding: 10px 14px;
+                padding: 0px 14px;
+                min-height: 44px;
+                height: 44px;
                 font-size: 13px;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
                 selection-background-color: #1A73E8;
             }
             QLineEdit:focus {

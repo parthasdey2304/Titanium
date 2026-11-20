@@ -361,18 +361,18 @@
     <div class="metrics-grid">
         <div class="metric-card">
             <div class="title">Active Modules</div>
-            <div class="val">14 Core Services</div>
-            <div class="desc">PySide6, Gemini Live, ElevenLabs TTS, WMPlayer.OCX in-process audio</div>
+            <div class="val">22 Core Services</div>
+            <div class="desc">PySide6, Gemini Live, ElevenLabs TTS, Native Rust Port, Setup Wizard</div>
         </div>
         <div class="metric-card">
             <div class="title">Memory Footprint</div>
-            <div class="val">~58 MB RAM</div>
-            <div class="desc">Ultra-lightweight zero-Electron native C++/Python Qt runtimes</div>
+            <div class="val">15–25 MB (Rust)</div>
+            <div class="desc">Ultra-lightweight zero-Electron runtimes (Rust: ~20MB, Python: ~58MB)</div>
         </div>
         <div class="metric-card">
             <div class="title">Graphify Nodes</div>
-            <div class="val">362 Nodes</div>
-            <div class="desc">626 structural edges mapped via deterministic tree-sitter AST extraction</div>
+            <div class="val">526 Nodes</div>
+            <div class="desc">863 structural edges mapped across 27 AST semantic communities</div>
         </div>
         <div class="metric-card">
             <div class="title">Single-Instance IPC</div>
@@ -385,6 +385,8 @@
         <button class="tab-btn active" onclick="switchTab('system-flow')">System Architecture & Pipeline</button>
         <button class="tab-btn" onclick="switchTab('audio-ducking')">Audio Ducking & Music Pipeline</button>
         <button class="tab-btn" onclick="switchTab('single-instance')">Single-Instance Socket IPC</button>
+        <button class="tab-btn" onclick="switchTab('rust-port')">🦀 Native Rust Port (Sub-20MB)</button>
+        <button class="tab-btn" onclick="switchTab('setup-wizard')">📦 Windows Setup Wizard</button>
         <button class="tab-btn" onclick="switchTab('components')">Component Directory</button>
     </div>
 
@@ -534,7 +536,102 @@ sequenceDiagram
         </div>
     </div>
 
-    <!-- TAB 4: COMPONENT DIRECTORY -->
+    <!-- TAB 4: NATIVE RUST PORT -->
+    <div id="rust-port" class="tab-panel">
+        <div class="viewer-card">
+            <div class="viewer-controls">
+                <button class="ctrl-btn" onclick="zoomIn('svg-rust')">+</button>
+                <button class="ctrl-btn" onclick="zoomOut('svg-rust')">-</button>
+                <button class="ctrl-btn" onclick="resetZoom('svg-rust')">↺</button>
+            </div>
+            <div class="diagram-container" id="svg-rust">
+                <pre class="mermaid">
+flowchart TB
+    subgraph Rust_UI["🖥️ Native Win32 Subsystem (WS_EX_LAYERED)"]
+        RustOrb["NativeOrb<br/><i>Win32 Transparent 60 FPS Sphere</i>"]
+        KeyPrompt["NativeKeyPrompt<br/><i>On-Screen API Key GUI Dialog</i>"]
+    end
+
+    subgraph Rust_Audio["🎙️ Bare-Metal DSP & Audio (CPAL / Rodio)"]
+        CPAL["WakeListener<br/><i>32ms Micro-Buffers @ 16kHz</i>"]
+        DSPFilter["DSP Engine<br/><i>4th-Order Butterworth 300-3400Hz</i>"]
+        CrestFactor["Crest Factor Evaluator<br/><i>CF > 5.0 Keyboard Click Rejection</i>"]
+        RodioPlayer["MusicPlayer<br/><i>In-Process Streaming & Ducking</i>"]
+    end
+
+    subgraph Rust_AI["⚡ Direct Cloud Engines (Zero LangChain)"]
+        GeminiREST["GeminiClient<br/><i>reqwest Direct REST v1beta</i>"]
+        GeminiWS["GeminiLiveClient<br/><i>tokio-tungstenite WebSocket</i>"]
+        ElevenRust["ElevenLabsTTS<br/><i>Streaming Audio Buffer Sink</i>"]
+    end
+
+    subgraph Rust_IPC["🔒 Process Lock & Mutex"]
+        PortLock["TcpListener::bind<br/><i>Port 48123 Instance Mutex</i>"]
+    end
+
+    CPAL --> DSPFilter --> CrestFactor
+    CrestFactor -->|Speech Detected| RustOrb
+    RustOrb -->|Update State| RustOrb
+    KeyPrompt -->|Live Verification| GeminiREST
+    CrestFactor -->|Wake Event| GeminiREST
+    CrestFactor -->|Duck Signal (15%)| RodioPlayer
+    GeminiREST --> ElevenRust
+    ElevenRust -->|Playback Finished| RodioPlayer
+                </pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: WINDOWS SETUP WIZARD -->
+    <div id="setup-wizard" class="tab-panel">
+        <div class="viewer-card">
+            <div class="viewer-controls">
+                <button class="ctrl-btn" onclick="zoomIn('svg-setup')">+</button>
+                <button class="ctrl-btn" onclick="zoomOut('svg-setup')">-</button>
+                <button class="ctrl-btn" onclick="resetZoom('svg-setup')">↺</button>
+            </div>
+            <div class="diagram-container" id="svg-setup">
+                <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as User / Installer
+    participant Setup as Titanium-Setup.exe
+    participant Gemini as Google Gemini API
+    participant OS as Windows Subsystem
+    participant Titanium as Installed Titanium.exe
+
+    User->>Setup: Double-clicks Titanium-Setup.exe
+    Setup->>OS: Checks Local AppData & .env for existing keys
+    alt Key Detected on Local Device
+        Setup->>Setup: Pre-fills API Key with green badge (✓ Auto-detected)
+    else New Machine / Downloaded from GitHub
+        Setup->>User: Prompts for custom install folder & Gemini API Key
+        User->>Setup: Enters directory & pastes Gemini API Key
+    end
+
+    User->>Setup: Clicks 'Install Titanium'
+    Setup->>Gemini: Live validation ping (generativelanguage.googleapis.com)
+    alt Invalid Key
+        Gemini-->>Setup: HTTP 400/403
+        Setup-->>User: Displays error message without proceeding
+    else Valid Key
+        Gemini-->>Setup: HTTP 200 OK
+        Setup->>OS: Extracts Titanium.exe & assets to selected directory
+        Setup->>OS: Writes .env with verified GEMINI_API_KEY
+        Setup->>OS: Generates Start Menu shortcut & Desktop icon
+        Setup->>OS: Configures HKCU Run registry (autostart on boot)
+        Setup->>OS: Deploys safe uninstaller (uninstall.bat)
+        Setup->>User: Shows 'Installation Complete!' with Launch checkbox
+        User->>Setup: Clicks 'Finish'
+        Setup->>Titanium: Spawns Titanium.exe in background & exits setup
+        Titanium->>User: Reveals 3D Siri Orb on Top-Right Desktop!
+    end
+                </pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 6: COMPONENT DIRECTORY -->
     <div id="components" class="tab-panel">
         <div class="component-list">
             <div class="component-item">
@@ -560,6 +657,18 @@ sequenceDiagram
             <div class="component-item">
                 <h4>SingleInstanceLock <span class="badge badge-sys">Socket IPC</span></h4>
                 <p>Port 48123 TCP IPC server ensuring strictly ONE running process in Task Manager and bringing the existing orb to front upon duplicate launch.</p>
+            </div>
+            <div class="component-item">
+                <h4>NativeOrb (Rust) <span class="badge badge-ui">Win32 WS_EX_LAYERED</span></h4>
+                <p>Bare-metal Win32 layered transparent window rendering 60 FPS organic plasma sphere with per-pixel 32-bit alpha blending in only 15–25 MB active RAM.</p>
+            </div>
+            <div class="component-item">
+                <h4>TitaniumSetupWizard <span class="badge badge-sys">PySide6 / Installer</span></h4>
+                <p>Graphical Windows installer wizard with custom directory picker, live Gemini API key verification, automatic shortcuts, autostart, and uninstaller creation.</p>
+            </div>
+            <div class="component-item">
+                <h4>NativeKeyPrompt (Rust) <span class="badge badge-ai">Win32 GUI</span></h4>
+                <p>Native on-screen graphical setup prompt in Rust that collects, live-validates, and persists the Google Gemini API key to local .env without terminal popups.</p>
             </div>
         </div>
     </div>

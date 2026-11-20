@@ -1,9 +1,11 @@
 import sys
 import os
 import shutil
+import tempfile
 import subprocess
 import winreg
 from pathlib import Path
+from typing import Optional
 import requests
 
 from PySide6.QtWidgets import (
@@ -12,11 +14,33 @@ from PySide6.QtWidgets import (
     QProgressBar, QStackedWidget, QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QIcon, QFont, QPixmap, QDesktopServices
+from PySide6.QtGui import QIcon, QFont, QPixmap, QDesktopServices, QImage, QPainter, QColor, QPen, QPainterPath
 from PySide6.QtCore import QUrl
 
 APP_NAME = "Titanium"
 DESCRIPTION = "Titanium AI Virtual Assistant for Windows"
+
+
+def get_checkmark_icon_path() -> str:
+    """Generates a high-contrast anti-aliased black checkmark tick icon and returns its URI."""
+    temp_icon = Path(tempfile.gettempdir()) / "titanium_checkmark.png"
+    try:
+        img = QImage(32, 32, QImage.Format_ARGB32)
+        img.fill(QColor(0, 0, 0, 0))
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(10, 15, 30), 4.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        path = QPainterPath()
+        path.moveTo(7, 16)
+        path.lineTo(13, 22)
+        path.lineTo(25, 9)
+        p.drawPath(path)
+        p.end()
+        img.save(str(temp_icon))
+    except Exception as e:
+        print(f"Error generating checkmark: {e}")
+    return str(temp_icon).replace("\\", "/")
 
 
 class InstallWorker(QThread):
@@ -158,118 +182,221 @@ $Shortcut.Save()
             print(f"Error registering startup: {e}")
 
 
+class UninstallWorker(QThread):
+    progress = Signal(int, str)
+    finished = Signal(bool, str)
+
+    def __init__(self, target_dir: Optional[Path]):
+        super().__init__()
+        self.target_dir = target_dir
+
+    def run(self):
+        try:
+            self.progress.emit(20, "Stopping active Titanium processes...")
+            subprocess.run(["taskkill", "/F", "/IM", "Titanium.exe"], capture_output=True, timeout=5)
+
+            self.progress.emit(45, "Removing Windows Startup registry entries...")
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE) as key:
+                    for name in [APP_NAME, "TitaniumAssistant"]:
+                        try:
+                            winreg.DeleteValue(key, name)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            self.progress.emit(65, "Deleting Windows shortcuts...")
+            appdata = Path(os.environ.get("APPDATA", ""))
+            userprofile = Path(os.environ.get("USERPROFILE", ""))
+            
+            for lnk in [
+                appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / f"{APP_NAME}.lnk",
+                appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / f"{APP_NAME}.lnk",
+                userprofile / "Desktop" / f"{APP_NAME}.lnk"
+            ]:
+                if lnk.exists():
+                    try:
+                        lnk.unlink()
+                    except Exception:
+                        pass
+
+            self.progress.emit(85, "Removing application files...")
+            if self.target_dir and self.target_dir.exists():
+                is_source_repo = (self.target_dir / "main.py").exists() and (self.target_dir / "titanium").exists()
+                if not is_source_repo:
+                    try:
+                        shutil.rmtree(self.target_dir, ignore_errors=True)
+                    except Exception as e:
+                        print(f"Error deleting target_dir: {e}")
+                else:
+                    for f in [self.target_dir / "uninstall.bat"]:
+                        if f.exists():
+                            f.unlink()
+
+            try:
+                subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, timeout=3)
+            except Exception:
+                pass
+
+            self.progress.emit(100, "Uninstallation complete!")
+            self.finished.emit(True, "Titanium has been uninstalled successfully.")
+        except Exception as e:
+            self.finished.emit(False, f"Uninstallation error: {str(e)}")
+
+
 class TitaniumInstallerWindow(QMainWindow):
     """Modern Dark Gemini Setup Wizard for Titanium Virtual Assistant."""
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Titanium Virtual Assistant - Setup")
-        self.setFixedSize(540, 520)
+        self.setFixedSize(580, 600)
 
         # Set App Icon
         icon_path = Path(__file__).resolve().parent / "titanium.ico"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
+        self.existing_dir = self._detect_existing_installation()
         self._apply_dark_style()
         self._init_ui()
 
     def _apply_dark_style(self):
-        self.setStyleSheet("""
-            QMainWindow {
+        check_path = get_checkmark_icon_path()
+        self.setStyleSheet(f"""
+            QMainWindow {{
                 background-color: #131314;
-            }
-            QWidget {
+            }}
+            QWidget {{
                 color: #E3E3E3;
                 font-family: 'Segoe UI', -apple-system, sans-serif;
-            }
-            QFrame#card {
+            }}
+            QFrame#card {{
                 background-color: #1E1F20;
                 border: 1px solid #28292A;
                 border-radius: 12px;
-                padding: 16px;
-            }
-            QLabel#headerTitle {
+                padding: 18px;
+            }}
+            QFrame#alertCard {{
+                background-color: rgba(56, 189, 248, 0.08);
+                border: 1px solid rgba(56, 189, 248, 0.28);
+                border-radius: 8px;
+                padding: 10px 14px;
+            }}
+            QLabel#headerTitle {{
                 font-size: 20px;
                 font-weight: 700;
                 color: #FFFFFF;
-            }
-            QLabel#headerSubtitle {
+            }}
+            QLabel#headerSubtitle {{
                 font-size: 13px;
                 color: #9AA0A6;
-            }
-            QLabel#sectionLabel {
+            }}
+            QLabel#sectionLabel {{
                 font-size: 13px;
                 font-weight: 600;
                 color: #D2E3FC;
-            }
-            QLineEdit {
+            }}
+            QLineEdit {{
                 background-color: #131314;
                 color: #FFFFFF;
-                border: 1px solid #3C4043;
+                border: 1.5px solid #3C4043;
                 border-radius: 8px;
-                padding: 8px 12px;
+                padding: 0px 14px;
+                min-height: 44px;
+                height: 44px;
                 font-size: 13px;
-            }
-            QLineEdit:focus {
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+            }}
+            QLineEdit:focus {{
                 border: 1.5px solid #8AB4F8;
-            }
-            QPushButton#actionBtn {
+                background-color: #18191A;
+            }}
+            QPushButton#actionBtn {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1A73E8, stop:1 #8AB4F8);
                 color: #000000;
                 font-weight: 700;
                 font-size: 13px;
                 border-radius: 8px;
-                padding: 10px 24px;
+                padding: 0px 24px;
+                min-height: 44px;
+                height: 44px;
                 border: none;
-            }
-            QPushButton#actionBtn:hover {
+            }}
+            QPushButton#actionBtn:hover {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1E88E5, stop:1 #A8C7FA);
-            }
-            QPushButton#actionBtn:disabled {
+            }}
+            QPushButton#actionBtn:disabled {{
                 background-color: #3C4043;
                 color: #80868B;
-            }
-            QPushButton#secondaryBtn {
+            }}
+            QPushButton#secondaryBtn {{
                 background-color: #28292A;
                 color: #E3E3E3;
                 font-size: 13px;
+                font-weight: 600;
                 border-radius: 8px;
-                padding: 8px 16px;
+                padding: 0px 20px;
+                min-height: 44px;
+                height: 44px;
                 border: 1px solid #3C4043;
-            }
-            QPushButton#secondaryBtn:hover {
+            }}
+            QPushButton#secondaryBtn:hover {{
                 background-color: #35373A;
-            }
-            QCheckBox {
+                border-color: #5F6368;
+            }}
+            QPushButton#dangerBtn {{
+                background-color: rgba(239, 68, 68, 0.15);
+                color: #F87171;
                 font-size: 13px;
-                color: #BDC1C6;
-                spacing: 8px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border-radius: 4px;
-                border: 1px solid #5F6368;
+                font-weight: 600;
+                border-radius: 8px;
+                padding: 0px 18px;
+                min-height: 44px;
+                height: 44px;
+                border: 1px solid rgba(239, 68, 68, 0.4);
+            }}
+            QPushButton#dangerBtn:hover {{
+                background-color: #DC2626;
+                color: #FFFFFF;
+                border-color: #DC2626;
+            }}
+            QCheckBox {{
+                font-size: 13px;
+                color: #E3E3E3;
+                spacing: 12px;
+                min-height: 32px;
+            }}
+            QCheckBox::indicator {{
+                width: 22px;
+                height: 22px;
+                border-radius: 6px;
+                border: 1.5px solid #5F6368;
                 background-color: #131314;
-            }
-            QCheckBox::indicator:checked {
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: #8AB4F8;
+                background-color: #1E1F20;
+            }}
+            QCheckBox::indicator:checked {{
                 background-color: #8AB4F8;
                 border-color: #8AB4F8;
-            }
-            QProgressBar {
+                image: url("{check_path}");
+            }}
+            QProgressBar {{
                 background-color: #1E1F20;
                 border: 1px solid #3C4043;
                 border-radius: 6px;
                 text-align: center;
                 color: #FFFFFF;
                 font-size: 12px;
-                height: 18px;
-            }
-            QProgressBar::chunk {
+                height: 20px;
+            }}
+            QProgressBar::chunk {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1A73E8, stop:1 #8AB4F8);
                 border-radius: 5px;
-            }
+            }}
         """)
 
     def _init_ui(self):
@@ -296,11 +423,11 @@ class TitaniumInstallerWindow(QMainWindow):
         header_layout.addWidget(icon_lbl)
         main_layout.addLayout(header_layout)
 
-        # Stacked Pages (Page 0: Form, Page 1: Success)
+        # Stacked Pages (Page 0: Form, Page 1: Install Success, Page 2: Uninstall Success)
         self.stack = QStackedWidget()
         main_layout.addWidget(self.stack)
 
-        # ---- PAGE 0: CONFIGURATION & INSTALL ----
+        # ---- PAGE 0: CONFIGURATION & INSTALL / UNINSTALL ----
         page0 = QWidget()
         p0_layout = QVBoxLayout(page0)
         p0_layout.setContentsMargins(0, 0, 0, 0)
@@ -311,10 +438,21 @@ class TitaniumInstallerWindow(QMainWindow):
         card_layout = QVBoxLayout(card)
         card_layout.setSpacing(14)
 
+        # Existing Installation Banner
+        if self.existing_dir:
+            alert = QFrame()
+            alert.setObjectName("alertCard")
+            alert_layout = QHBoxLayout(alert)
+            alert_layout.setContentsMargins(10, 6, 10, 6)
+            alert_lbl = QLabel(f"ℹ️ Existing installation detected at:\n{str(self.existing_dir)}")
+            alert_lbl.setStyleSheet("color: #38BDF8; font-size: 12px; font-weight: 500;")
+            alert_layout.addWidget(alert_lbl)
+            card_layout.addWidget(alert)
+
         # 1. Install Directory
         card_layout.addWidget(QLabel("1. Where would you like to install Titanium?", objectName="sectionLabel"))
         dir_box = QHBoxLayout()
-        default_dir = Path(os.environ.get("LOCALAPPDATA", "C:\\")) / "Programs" / "Titanium"
+        default_dir = self.existing_dir or (Path(os.environ.get("LOCALAPPDATA", "C:\\")) / "Programs" / "Titanium")
         self.dir_input = QLineEdit(str(default_dir))
         browse_btn = QPushButton("Browse...")
         browse_btn.setObjectName("secondaryBtn")
@@ -378,9 +516,18 @@ class TitaniumInstallerWindow(QMainWindow):
         cancel_btn.setObjectName("secondaryBtn")
         cancel_btn.clicked.connect(self.close)
         p0_btns.addWidget(cancel_btn)
+
+        # Optional Uninstall Button if installation exists
+        if self.existing_dir:
+            self.uninstall_btn = QPushButton("🗑️ Uninstall Titanium")
+            self.uninstall_btn.setObjectName("dangerBtn")
+            self.uninstall_btn.clicked.connect(self._confirm_uninstallation)
+            p0_btns.addWidget(self.uninstall_btn)
+
         p0_btns.addStretch()
 
-        self.install_btn = QPushButton("Install Titanium")
+        btn_text = "Update / Reinstall" if self.existing_dir else "Install Titanium"
+        self.install_btn = QPushButton(btn_text)
         self.install_btn.setObjectName("actionBtn")
         self.install_btn.clicked.connect(self._start_installation)
         p0_btns.addWidget(self.install_btn)
@@ -388,7 +535,7 @@ class TitaniumInstallerWindow(QMainWindow):
 
         self.stack.addWidget(page0)
 
-        # ---- PAGE 1: COMPLETION ----
+        # ---- PAGE 1: INSTALL SUCCESS ----
         page1 = QWidget()
         p1_layout = QVBoxLayout(page1)
         p1_layout.setContentsMargins(0, 0, 0, 0)
@@ -428,18 +575,101 @@ class TitaniumInstallerWindow(QMainWindow):
 
         self.stack.addWidget(page1)
 
+        # ---- PAGE 2: UNINSTALL SUCCESS ----
+        page2 = QWidget()
+        p2_layout = QVBoxLayout(page2)
+        p2_layout.setContentsMargins(0, 0, 0, 0)
+        p2_layout.setSpacing(16)
+
+        un_card = QFrame()
+        un_card.setObjectName("card")
+        un_layout = QVBoxLayout(un_card)
+        un_layout.setSpacing(16)
+
+        un_icon = QLabel("🗑️")
+        un_icon.setStyleSheet("font-size: 40px;")
+        un_layout.addWidget(un_icon, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        un_title = QLabel("Titanium Uninstalled Successfully")
+        un_title.setStyleSheet("font-size: 18px; font-weight: 700; color: #FFFFFF;")
+        un_layout.addWidget(un_title, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        un_desc = QLabel(
+            "All shortcuts, registry autostart entries, and deployed application files\n"
+            "have been safely removed from your computer."
+        )
+        un_desc.setStyleSheet("color: #9AA0A6; font-size: 13px; text-align: center;")
+        un_desc.setWordWrap(True)
+        un_layout.addWidget(un_desc, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        p2_layout.addWidget(un_card)
+
+        p2_btns = QHBoxLayout()
+        p2_btns.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setObjectName("actionBtn")
+        close_btn.clicked.connect(self.close)
+        p2_btns.addWidget(close_btn)
+        p2_layout.addLayout(p2_btns)
+
+        self.stack.addWidget(page2)
+
+    def _detect_existing_installation(self) -> Optional[Path]:
+        """Detects whether Titanium is already installed anywhere on the system."""
+        # 1. Check HKCU Run registry
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ) as key:
+                for name in [APP_NAME, "TitaniumAssistant"]:
+                    try:
+                        val, _ = winreg.QueryValueEx(key, name)
+                        if val:
+                            p = val.strip().strip('"')
+                            exe_path = Path(p)
+                            if exe_path.exists():
+                                return exe_path.parent
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 2. Check Start Menu shortcut target
+        appdata = Path(os.environ.get("APPDATA", ""))
+        start_lnk = appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / f"{APP_NAME}.lnk"
+        if start_lnk.exists():
+            try:
+                cmd = f'(New-Object -ComObject WScript.Shell).CreateShortcut("{str(start_lnk)}").TargetPath'
+                res = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd], capture_output=True, text=True, timeout=3)
+                p = res.stdout.strip().strip('"')
+                if p and Path(p).exists():
+                    return Path(p).parent
+            except Exception:
+                pass
+
+        # 3. Check default LocalAppData install dir
+        default_dir = Path(os.environ.get("LOCALAPPDATA", "C:\\")) / "Programs" / "Titanium"
+        if (default_dir / "Titanium.exe").exists():
+            return default_dir
+
+        return None
+
     def _detect_local_key(self) -> str:
         # Check environment variable
         if os.getenv("GEMINI_API_KEY"):
             return os.getenv("GEMINI_API_KEY")
 
-        # Check project root or exe parent
-        for candidate in [
+        # Check existing install dir or project root
+        candidates = []
+        if self.existing_dir:
+            candidates.append(self.existing_dir / ".env")
+
+        candidates.extend([
             Path(__file__).resolve().parent / ".env",
             Path(__file__).resolve().parent.parent / ".env",
             Path(sys.executable).resolve().parent / ".env",
             Path(os.environ.get("LOCALAPPDATA", "C:\\")) / "Programs" / "Titanium" / ".env"
-        ]:
+        ])
+
+        for candidate in candidates:
             if candidate.exists():
                 try:
                     for line in candidate.read_text(encoding="utf-8").splitlines():
@@ -470,6 +700,8 @@ class TitaniumInstallerWindow(QMainWindow):
             return
 
         self.install_btn.setEnabled(False)
+        if hasattr(self, "uninstall_btn"):
+            self.uninstall_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.status_lbl.setVisible(True)
         self.status_lbl.setText("Verifying API Key...")
@@ -486,12 +718,52 @@ class TitaniumInstallerWindow(QMainWindow):
         self.worker.finished.connect(self._on_finished)
         self.worker.start()
 
+    def _confirm_uninstallation(self):
+        loc = str(self.existing_dir) if self.existing_dir else "your system"
+        reply = QMessageBox.question(
+            self,
+            "Confirm Uninstall",
+            f"Are you sure you want to uninstall Titanium from {loc}?\n\n"
+            "This will delete shortcuts, remove Windows autostart entries, and clean up application files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._start_uninstallation()
+
+    def _start_uninstallation(self):
+        self.install_btn.setEnabled(False)
+        if hasattr(self, "uninstall_btn"):
+            self.uninstall_btn.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.status_lbl.setVisible(True)
+        self.status_lbl.setText("Uninstalling Titanium...")
+        self.progress_bar.setValue(10)
+
+        self.un_worker = UninstallWorker(self.existing_dir)
+        self.un_worker.progress.connect(self._on_progress)
+        self.un_worker.finished.connect(self._on_uninstall_finished)
+        self.un_worker.start()
+
+    def _on_uninstall_finished(self, success: bool, msg: str):
+        if success:
+            self.stack.setCurrentIndex(2) # Show uninstall success page
+        else:
+            self.install_btn.setEnabled(True)
+            if hasattr(self, "uninstall_btn"):
+                self.uninstall_btn.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.status_lbl.setVisible(False)
+            QMessageBox.critical(self, "Uninstallation Failed", msg)
+
     def _on_progress(self, val: int, msg: str):
         self.progress_bar.setValue(val)
         self.status_lbl.setText(msg)
 
     def _on_finished(self, success: bool, msg: str):
         self.install_btn.setEnabled(True)
+        if hasattr(self, "uninstall_btn"):
+            self.uninstall_btn.setEnabled(True)
         if success:
             dest = self.dir_input.text().strip()
             self.succ_desc.setText(
