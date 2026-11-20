@@ -110,6 +110,7 @@ class SiriOrbWidget(QWidget):
 
     def reveal(self):
         self.setWindowOpacity(1.0)
+        self._dock_to_top_right()
         self.show()
         self.raise_()
         self.activateWindow()

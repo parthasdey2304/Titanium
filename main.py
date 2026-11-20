@@ -208,24 +208,18 @@ class TitaniumApp(QObject):
 
         threading.Thread(target=hotkey_thread, daemon=True).start()
 
-# Global locks retained for process lifespan
-_GLOBAL_LOCK_FILE = None
-_GLOBAL_MUTEX_HANDLE = None
-
 def enforce_single_instance():
-    """Bulletproof 3-tier Single Instance Guard.
-    Ensures that ONLY ONE Titanium process and ONLY ONE Orb will ever exist on the machine.
+    """Ensures strictly ONE Titanium process and ONE Orb exists on the desktop.
+    If an existing or orphaned background process is running, terminates it cleanly
+    so this interactive launch reliably takes over the screen.
     """
-    global _GLOBAL_LOCK_FILE, _GLOBAL_MUTEX_HANDLE
     import os
     import psutil
-    import msvcrt
-    import ctypes
 
     my_pid = os.getpid()
     parent_pid = os.getppid()
 
-    # Tier 1: Check existing running Python processes running main.py
+    # Find and terminate any other Titanium instance
     for p in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             pid = p.info['pid']
@@ -235,53 +229,53 @@ def enforce_single_instance():
             if pname in ('python.exe', 'pythonw.exe'):
                 cmdline = ' '.join(p.info['cmdline'] or [])
                 if 'main.py' in cmdline:
-                    print(f"[Titanium] Titanium is already running (PID {pid}). Only 1 instance permitted. Exiting.", flush=True)
-                    sys.exit(0)
+                    try:
+                        p.kill()
+                    except Exception:
+                        pass
         except Exception:
             pass
 
-    # Tier 2: Exclusive Windows OS file lock
+    # Clean up any stale lock file
     lock_path = os.path.join(os.environ.get("TEMP", "."), "titanium_single_instance.lock")
     try:
-        f = open(lock_path, "w")
-        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-        _GLOBAL_LOCK_FILE = f # Keep open for entire process lifespan
-    except Exception:
-        print("[Titanium] Lock file held by another Titanium instance. Exiting.", flush=True)
-        sys.exit(0)
-
-    # Tier 3: Local Windows Named Mutex
-    try:
-        mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\Titanium_AI_Assistant_SingleInstance_Mutex")
-        if ctypes.windll.kernel32.GetLastError() == 183: # ERROR_ALREADY_EXISTS
-            print("[Titanium] Named mutex exists. Exiting duplicate instance.", flush=True)
-            sys.exit(0)
-        _GLOBAL_MUTEX_HANDLE = mutex
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
     except Exception:
         pass
 
 def main():
-    enforce_single_instance()
-
-    # Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
-    try:
-        import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Titanium.AI.Assistant")
-    except Exception:
-        pass
-
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False) # Keep running in system tray
-    
+    import time
     from pathlib import Path
-    from PySide6.QtGui import QIcon
-    icon_path = Path(__file__).resolve().parent / "titanium.ico"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
-    
-    titanium_controller = TitaniumApp()
-    
-    sys.exit(app.exec())
+
+    try:
+        enforce_single_instance()
+
+        # Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Titanium.AI.Assistant")
+        except Exception:
+            pass
+
+        app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False) # Keep running in system tray
+        
+        icon_path = Path(__file__).resolve().parent / "titanium.ico"
+        if icon_path.exists():
+            from PySide6.QtGui import QIcon
+            app.setWindowIcon(QIcon(str(icon_path)))
+        
+        titanium_controller = TitaniumApp()
+        
+        sys.exit(app.exec())
+    except Exception as e:
+        import traceback
+        log_path = Path(__file__).resolve().parent / "titanium_runtime.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n--- Crash at {time.ctime()} ---\n")
+            f.write(traceback.format_exc())
+        raise
 
 if __name__ == "__main__":
     main()
