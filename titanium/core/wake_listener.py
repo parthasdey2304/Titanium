@@ -226,6 +226,21 @@ class WakeWordListener:
             text = transcript.lower().strip()
             print(f"[WakeWordListener] Captured: '{transcript}'", flush=True)
 
+            # 0. Check for application shutdown commands (works in both normal and active live session)
+            shutdown_triggers = [
+                "turn yourself off", "turn off yourself", "turn off titanium", "titanium turn off",
+                "titanium turn yourself off", "shut yourself down", "shut down titanium", "shutdown titanium",
+                "titanium shut down", "titanium shutdown", "turn yourself down", "shut down yourself",
+                "band ho jao", "apne aap ko band karo", "apne aap ko band kar do", "titanium band ho jao",
+                "close yourself", "quit yourself", "exit titanium", "quit titanium", "close titanium",
+                "stop titanium", "power off titanium", "titanium power off"
+            ]
+            if any(trig in text for trig in shutdown_triggers):
+                print(f"[WakeWordListener] Shutdown command detected: '{text}'", flush=True)
+                self.in_active_session = False
+                self.on_wake("shutdown_titanium")
+                return
+
             # 1. Check for session exit commands
             if self.in_active_session and any(w in text for w in ["bye", "stop", "shant", "quiet", "alvida", "exit", "band karo"]):
                 self.in_active_session = False

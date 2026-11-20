@@ -47,10 +47,23 @@ class InstallWorker(QThread):
     progress = Signal(int, str)
     finished = Signal(bool, str)
 
-    def __init__(self, target_dir: Path, api_key: str, create_desktop: bool, create_start: bool, autostart: bool):
+    def __init__(
+        self,
+        target_dir: Path,
+        api_key: str,
+        elevenlabs_key: str,
+        elevenlabs_voice: str,
+        elevenlabs_model: str,
+        create_desktop: bool,
+        create_start: bool,
+        autostart: bool
+    ):
         super().__init__()
         self.target_dir = target_dir
         self.api_key = api_key.strip()
+        self.elevenlabs_key = elevenlabs_key.strip()
+        self.elevenlabs_voice = elevenlabs_voice.strip() or "Charlie"
+        self.elevenlabs_model = elevenlabs_model.strip() or "eleven_flash_v2_5"
         self.create_desktop = create_desktop
         self.create_start = create_start
         self.autostart = autostart
@@ -96,6 +109,9 @@ class InstallWorker(QThread):
             env_content = (
                 f"# Titanium Configuration\n"
                 f"GEMINI_API_KEY={self.api_key}\n"
+                f"ELEVENLABS_API_KEY={self.elevenlabs_key}\n"
+                f"ELEVENLABS_VOICE_NAME={self.elevenlabs_voice}\n"
+                f"ELEVENLABS_MODEL_ID={self.elevenlabs_model}\n"
                 f"ASSISTANT_NAME=Titanium\n"
                 f"LANGUAGE_MODE=hinglish\n"
             )
@@ -258,7 +274,8 @@ class TitaniumInstallerWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
 
         self.existing_dir = self._detect_existing_installation()
-        self.setFixedSize(580, 700 if self.existing_dir else 620)
+        self.detected_keys = self._detect_local_keys()
+        self.setFixedSize(580, 800 if self.existing_dir else 720)
         self._apply_dark_style()
         self._init_ui()
 
@@ -469,10 +486,8 @@ class TitaniumInstallerWindow(QMainWindow):
         self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
         card_layout.addWidget(self.key_input)
 
-        # Check for pre-existing key on this device
-        detected_key = self._detect_local_key()
-        if detected_key:
-            self.key_input.setText(detected_key)
+        if self.detected_keys.get("gemini"):
+            self.key_input.setText(self.detected_keys["gemini"])
             status_hint = QLabel("✓ Auto-detected existing Gemini API key on this machine.")
             status_hint.setStyleSheet("color: #81C995; font-size: 12px; font-weight: 500;")
             card_layout.addWidget(status_hint)
@@ -487,8 +502,31 @@ class TitaniumInstallerWindow(QMainWindow):
             hint_box.addWidget(key_link)
             card_layout.addLayout(hint_box)
 
-        # 3. Shortcuts & Autostart Checkboxes
-        card_layout.addWidget(QLabel("3. System Shortcuts:", objectName="sectionLabel"))
+        # 3. ElevenLabs Voice API Key (Optional)
+        card_layout.addWidget(QLabel("3. ElevenLabs Voice API Key (Optional):", objectName="sectionLabel"))
+        self.eleven_input = QLineEdit()
+        self.eleven_input.setPlaceholderText("Paste ElevenLabs API Key (sk_... - for ultra-realistic Hinglish voice)")
+        self.eleven_input.setEchoMode(QLineEdit.EchoMode.Password)
+        card_layout.addWidget(self.eleven_input)
+
+        if self.detected_keys.get("elevenlabs"):
+            self.eleven_input.setText(self.detected_keys["elevenlabs"])
+            eleven_hint = QLabel("✓ Auto-detected ElevenLabs API key on this machine.")
+            eleven_hint.setStyleSheet("color: #81C995; font-size: 12px; font-weight: 500;")
+            card_layout.addWidget(eleven_hint)
+        else:
+            e_hint_box = QHBoxLayout()
+            e_hint_lbl = QLabel("Enables ultra-realistic voice. (Falls back to Windows speech if blank)")
+            e_hint_lbl.setStyleSheet("color: #9AA0A6; font-size: 12px;")
+            e_key_link = QLabel('<a style="color: #8AB4F8; text-decoration: none;" href="https://elevenlabs.io">Get ElevenLabs key ↗</a>')
+            e_key_link.setOpenExternalLinks(True)
+            e_hint_box.addWidget(e_hint_lbl)
+            e_hint_box.addStretch()
+            e_hint_box.addWidget(e_key_link)
+            card_layout.addLayout(e_hint_box)
+
+        # 4. Shortcuts & Autostart Checkboxes
+        card_layout.addWidget(QLabel("4. System Shortcuts:", objectName="sectionLabel"))
         self.chk_desktop = QCheckBox("Create Desktop shortcut")
         self.chk_desktop.setChecked(True)
         self.chk_start = QCheckBox("Add to Windows Start Menu (searchable in Windows)")
@@ -653,17 +691,21 @@ class TitaniumInstallerWindow(QMainWindow):
 
         return None
 
-    def _detect_local_key(self) -> str:
-        # Check environment variable
-        if os.getenv("GEMINI_API_KEY"):
-            return os.getenv("GEMINI_API_KEY")
+    def _detect_local_keys(self) -> dict:
+        result = {
+            "gemini": os.getenv("GEMINI_API_KEY", "").strip(),
+            "elevenlabs": os.getenv("ELEVENLABS_API_KEY", "").strip(),
+            "voice": os.getenv("ELEVENLABS_VOICE_NAME", "Charlie").strip(),
+            "model": os.getenv("ELEVENLABS_MODEL_ID", "eleven_flash_v2_5").strip()
+        }
 
-        # Check existing install dir or project root
         candidates = []
         if self.existing_dir:
             candidates.append(self.existing_dir / ".env")
 
+        user_home = Path(os.environ.get("USERPROFILE", ""))
         candidates.extend([
+            user_home / "Downloads" / "Titanium" / ".env",
             Path(__file__).resolve().parent / ".env",
             Path(__file__).resolve().parent.parent / ".env",
             Path(sys.executable).resolve().parent / ".env",
@@ -674,13 +716,22 @@ class TitaniumInstallerWindow(QMainWindow):
             if candidate.exists():
                 try:
                     for line in candidate.read_text(encoding="utf-8").splitlines():
-                        if line.startswith("GEMINI_API_KEY="):
-                            k = line.split("=", 1)[1].strip()
-                            if k and k != "your_gemini_api_key_here":
-                                return k
+                        line = line.strip()
+                        if line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip()
+                        if k == "GEMINI_API_KEY" and not result["gemini"] and v and v != "your_gemini_api_key_here":
+                            result["gemini"] = v
+                        elif k == "ELEVENLABS_API_KEY" and not result["elevenlabs"] and v and v != "your_elevenlabs_api_key_here":
+                            result["elevenlabs"] = v
+                        elif k == "ELEVENLABS_VOICE_NAME" and v:
+                            result["voice"] = v
+                        elif k == "ELEVENLABS_MODEL_ID" and v:
+                            result["model"] = v
                 except Exception:
                     pass
-        return ""
+        return result
 
     def _browse_directory(self):
         chosen = QFileDialog.getExistingDirectory(self, "Select Installation Directory", self.dir_input.text())
@@ -690,6 +741,7 @@ class TitaniumInstallerWindow(QMainWindow):
     def _start_installation(self):
         target_path = Path(self.dir_input.text().strip())
         key = self.key_input.text().strip()
+        eleven_key = self.eleven_input.text().strip()
 
         if not key:
             QMessageBox.warning(
@@ -711,6 +763,9 @@ class TitaniumInstallerWindow(QMainWindow):
         self.worker = InstallWorker(
             target_dir=target_path,
             api_key=key,
+            elevenlabs_key=eleven_key,
+            elevenlabs_voice=self.detected_keys.get("voice", "Charlie"),
+            elevenlabs_model=self.detected_keys.get("model", "eleven_flash_v2_5"),
             create_desktop=self.chk_desktop.isChecked(),
             create_start=self.chk_start.isChecked(),
             autostart=self.chk_autostart.isChecked()

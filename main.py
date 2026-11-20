@@ -74,6 +74,7 @@ class TitaniumApp(QObject):
 
         # 5. Bind Live Client State Callbacks
         self.live_client.on_state_change = lambda state: self.update_orb_state.emit(state)
+        self.live_client.on_shutdown = lambda: self.shutdown()
 
         # 6. Register Global Hotkey (Ctrl+Shift+S for Circle to Search)
         self._setup_global_hotkey()
@@ -225,10 +226,58 @@ class TitaniumApp(QObject):
             self.update_orb_state.emit("idle")
             self.show_response_signal.emit("Live Conversation Paused", "")
 
+    def shutdown(self, farewell_msg: str = "Alvida Parth! Titanium ab turn off ho raha hai."):
+        """Gracefully announces farewell via voice, stops background listeners, and terminates application."""
+        print(f"[TitaniumApp] Shutdown initiated: '{farewell_msg}'")
+        self.show_response_signal.emit(farewell_msg, "Turn Off Titanium")
+        
+        has_quit = [False]
+        def finish_and_quit():
+            if has_quit[0]:
+                return
+            has_quit[0] = True
+            try:
+                self.wake_listener.stop()
+            except Exception:
+                pass
+            try:
+                self.music_player.stop()
+            except Exception:
+                pass
+            try:
+                self.tray.hide()
+            except Exception:
+                pass
+            try:
+                if self.lock_socket:
+                    self.lock_socket.close()
+            except Exception:
+                pass
+            from PySide6.QtCore import QTimer
+            from PySide6.QtWidgets import QApplication
+            QTimer.singleShot(150, QApplication.instance().quit)
+
+        self.speak_with_pause(farewell_msg, on_done=finish_and_quit, next_state="idle")
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(4000, finish_and_quit)
+
     def on_wake_word_triggered(self, cmd: str):
         """Called when user says 'Hey Titanium' or speaks during an active session."""
         print(f"[TitaniumApp] Wake or voice received: '{cmd}'")
         lower = cmd.lower().strip() if cmd else ""
+
+        # 0. Voice Shutdown: "Titanium turn yourself off", "shut down", "band ho jao", etc.
+        shutdown_triggers = [
+            "shutdown_titanium", "turn yourself off", "turn off yourself", "turn off titanium",
+            "titanium turn off", "titanium turn yourself off", "shut yourself down", "shut down titanium",
+            "shutdown titanium", "titanium shut down", "titanium shutdown", "turn yourself down",
+            "shut down yourself", "band ho jao", "apne aap ko band karo", "apne aap ko band kar do",
+            "titanium band ho jao", "close yourself", "quit yourself", "exit titanium", "quit titanium",
+            "close titanium", "power off titanium", "titanium power off"
+        ]
+        if cmd == "shutdown_titanium" or any(w in lower for w in shutdown_triggers):
+            self.shutdown()
+            return
 
         # Quick Voice Stop Music Bypass
         if any(w in lower for w in ["stop music", "pause music", "gaana band karo", "music roko", "music pause"]):
@@ -310,12 +359,29 @@ class TitaniumApp(QObject):
 
     def handle_user_prompt(self, prompt: str):
         """Processes a prompt from user dialog or voice."""
+        lower = prompt.lower().strip()
+        shutdown_triggers = [
+            "turn yourself off", "turn off yourself", "turn off titanium", "titanium turn off",
+            "titanium turn yourself off", "shut yourself down", "shut down titanium", "shutdown titanium",
+            "titanium shut down", "titanium shutdown", "turn yourself down", "shut down yourself",
+            "band ho jao", "apne aap ko band karo", "apne aap ko band kar do", "titanium band ho jao",
+            "close yourself", "quit yourself", "exit titanium", "quit titanium", "close titanium",
+            "power off titanium", "titanium power off"
+        ]
+        if any(w in lower for w in shutdown_triggers):
+            self.shutdown()
+            return
+
         self.orb.set_state("thinking")
         # Instantly show the user's spoken words in black Gemini dark-mode bubble shifted right!
         self.show_user_prompt_signal.emit(prompt)
 
         def worker():
             answer = self.router.handle_user_query(prompt)
+            if answer == "SHUTDOWN_REQUESTED":
+                self.shutdown()
+                return
+
             # Display conversation turn (user prompt + AI response)
             self.show_response_signal.emit(answer, prompt)
 

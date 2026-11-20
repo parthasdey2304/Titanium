@@ -89,23 +89,29 @@ class ElevenLabsTTS:
 
     def _speak_worker(self, text: str, on_start, on_finish):
         if not text or not text.strip():
+            if on_finish:
+                on_finish()
             return
 
         clean_text = self._sanitize_text(text)
         if not clean_text:
+            if on_finish:
+                on_finish()
             return
 
+        # Check if ELEVENLABS_API_KEY was added dynamically to environment or .env
         if not self.api_key:
-            print("[ElevenLabsTTS] Notice: ELEVENLABS_API_KEY is not set.")
-            return
+            self.api_key = os.getenv("ELEVENLABS_API_KEY", "")
 
-        target_voice_id = self.resolve_voice_id()
-        audio_data = self._request_tts_audio(clean_text, target_voice_id)
+        audio_data = None
+        if self.api_key:
+            target_voice_id = self.resolve_voice_id()
+            audio_data = self._request_tts_audio(clean_text, target_voice_id)
 
-        # Fallback if selected voice fails
-        if not audio_data and target_voice_id != FALLBACK_VOICE_ID:
-            self._voice_id = FALLBACK_VOICE_ID
-            audio_data = self._request_tts_audio(clean_text, FALLBACK_VOICE_ID)
+            # Fallback if selected voice fails
+            if not audio_data and target_voice_id != FALLBACK_VOICE_ID:
+                self._voice_id = FALLBACK_VOICE_ID
+                audio_data = self._request_tts_audio(clean_text, FALLBACK_VOICE_ID)
 
         if audio_data:
             try:
@@ -127,6 +133,33 @@ class ElevenLabsTTS:
                 self._is_speaking = False
                 if on_finish:
                     on_finish()
+        else:
+            # Fallback seamlessly to Windows Native Speech (SAPI5)
+            print("[ElevenLabsTTS] Using Windows Native Speech fallback...")
+            self._speak_native_sapi(clean_text, on_start, on_finish)
+
+    def _speak_native_sapi(self, text: str, on_start, on_finish):
+        """Native zero-dependency Windows TTS fallback when ElevenLabs key is not set or network fails."""
+        try:
+            import win32com.client
+            import pythoncom
+            pythoncom.CoInitialize()
+            speaker = win32com.client.Dispatch("SAPI.SpVoice")
+            self._is_speaking = True
+            if on_start:
+                on_start()
+            speaker.Speak(text, 0)
+        except Exception as e:
+            print(f"[ElevenLabsTTS] SAPI fallback error: {e}")
+        finally:
+            self._is_speaking = False
+            try:
+                import pythoncom
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
+            if on_finish:
+                on_finish()
 
     def _request_tts_audio(self, text: str, voice_id: str) -> Optional[bytes]:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?optimize_streaming_latency=3&output_format=mp3_44100_128"
@@ -168,6 +201,15 @@ class ElevenLabsTTS:
         self._is_speaking = False
         try:
             pygame.mixer.music.stop()
+        except Exception:
+            pass
+        try:
+            import win32com.client
+            import pythoncom
+            pythoncom.CoInitialize()
+            speaker = win32com.client.Dispatch("SAPI.SpVoice")
+            speaker.Speak("", 2)  # SVSFPurgeBeforeSpeak (purges active speech buffer)
+            pythoncom.CoUninitialize()
         except Exception:
             pass
 

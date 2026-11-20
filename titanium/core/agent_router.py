@@ -127,6 +127,17 @@ class AgentRouter:
             self.memory.add_message("assistant", reply, model="music-player")
             return reply
 
+        # 0. Self-Shutdown Detection ("Titanium turn yourself off", "shut down", etc.)
+        if any(w in lower for w in [
+            "turn yourself off", "turn off yourself", "turn off titanium", "titanium turn off",
+            "titanium turn yourself off", "shut yourself down", "shut down titanium", "shutdown titanium",
+            "titanium shut down", "titanium shutdown", "turn yourself down", "shut down yourself",
+            "band ho jao", "apne aap ko band karo", "apne aap ko band kar do", "titanium band ho jao",
+            "close yourself", "quit yourself", "exit titanium", "quit titanium", "close titanium",
+            "power off titanium", "titanium power off"
+        ]):
+            return "SHUTDOWN_REQUESTED"
+
         # 1. Close Intent Detection (Apps, Tabs, Windows)
         is_close_intent = any(w in lower for w in [
             "close", "band karo", "band kar do", "shut", "kill", "terminate", "exit", "hata do", "hatao"

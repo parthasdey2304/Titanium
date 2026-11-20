@@ -24,6 +24,7 @@ class GeminiLiveClient:
         self._is_connected = False
         self._worker_thread: Optional[threading.Thread] = None
         self.on_state_change: Optional[Callable[[str], None]] = None # 'idle', 'listening', 'thinking', 'speaking'
+        self.on_shutdown: Optional[Callable[[], None]] = None
 
     def start(self):
         """Starts the Live client event loop in a background thread."""
@@ -69,11 +70,21 @@ class GeminiLiveClient:
                         accumulated_text = []
                         if full_reply:
                             print(f"[GeminiLive] {full_reply}")
+                            # Check if model responded to turn off / shutdown
+                            is_shutdown_reply = any(w in full_reply.lower() for w in [
+                                "shutting down titanium", "turning off titanium", "titanium band ho raha hai", "shutting down", "turning myself off"
+                            ])
                             # Speak with ElevenLabs Viraj voice
+                            def handle_finish():
+                                if self.on_state_change:
+                                    self.on_state_change("listening")
+                                if is_shutdown_reply and self.on_shutdown:
+                                    self.on_shutdown()
+
                             self.tts.speak_text(
                                 full_reply,
                                 on_start=lambda: self.on_state_change("speaking") if self.on_state_change else None,
-                                on_finish=lambda: self.on_state_change("listening") if self.on_state_change else None
+                                on_finish=handle_finish
                             )
 
         except Exception as e:
