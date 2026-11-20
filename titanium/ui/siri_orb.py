@@ -45,10 +45,12 @@ class SiriOrbWidget(QWidget):
     request_user_prompt = Signal(str)
     request_install = Signal()
     request_toggle_listening = Signal()
+    request_toggle_live_mode = Signal()
 
     def __init__(self, size: int = 96):
         super().__init__()
         self.orb_size = size
+        self.live_conversation_active = False
         # Generous widget bounds for outer glow and acoustic waves
         self.setFixedSize(size + 54, size + 54)
 
@@ -125,6 +127,11 @@ class SiriOrbWidget(QWidget):
     def set_screen_sharing(self, active: bool):
         self.screen_sharing = active
         self.set_state("seeing" if active else "idle")
+
+    def set_live_mode(self, active: bool):
+        """Enables or disables continuous live conversation indicator."""
+        self.live_conversation_active = active
+        self.update()
 
     def _update_animation(self):
         """Calculates dynamic living-energy oscillations for AmazingUI Sphere and advances video."""
@@ -454,6 +461,33 @@ class SiriOrbWidget(QWidget):
         p.setBrush(QBrush(bounce))
         p.drawEllipse(QRectF(cx - r * 0.2, cy + r * 0.15, r * 0.9, r * 0.5))
 
+        # Distinct LIVE Mode indicator pill on sphere
+        if self.live_conversation_active:
+            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            badge_w, badge_h = 36, 15
+            badge_x = cx - badge_w / 2
+            badge_y = cy + r - 10
+            badge_rect = QRectF(badge_x, badge_y, badge_w, badge_h)
+            
+            p.setPen(QColor(239, 68, 68, 200))
+            p.setBrush(QColor(185, 28, 28, 220))
+            p.drawRoundedRect(badge_rect, 7, 7)
+            
+            # Pulsating white dot
+            dot_alpha = int(180 + 75 * math.sin(self.phase * 4.0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(255, 255, 255, dot_alpha))
+            p.drawEllipse(QRectF(badge_x + 5, badge_y + 4.5, 5, 5))
+            
+            # Text "LIVE"
+            p.setPen(QColor(255, 255, 255, 240))
+            f = p.font()
+            f.setFamily("Segoe UI")
+            f.setPointSize(7)
+            f.setBold(True)
+            p.setFont(f)
+            p.drawText(QRectF(badge_x + 12, badge_y - 0.5, 22, badge_h), Qt.AlignmentFlag.AlignCenter, "LIVE")
+
     # --- Mouse & Interaction Events ---
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -502,6 +536,10 @@ class SiriOrbWidget(QWidget):
 
         search_act = menu.addAction("🔍 Circle to Search (Ctrl+Shift+S)")
         search_act.triggered.connect(lambda: self.request_circle_search.emit())
+
+        live_text = "⏹️ Stop Live Conversation" if self.live_conversation_active else "🎙️ Start Live Conversation (Continuous)"
+        live_act = menu.addAction(live_text)
+        live_act.triggered.connect(lambda: self.request_toggle_live_mode.emit())
 
         screen_share_text = "⏹️ Stop Screen Share" if self.screen_sharing else "🖥️ Screen Share with Gemini Live"
         share_act = menu.addAction(screen_share_text)

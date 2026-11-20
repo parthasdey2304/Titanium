@@ -32,6 +32,8 @@ class TitaniumApp(QObject):
         self.router = AgentRouter(memory=self.memory)
         self.live_client = GeminiLiveClient(tts=self.tts)
         self.initial_greeting_done = False
+        self.live_conversation_mode = False
+        self.follow_conversation = False
 
         # 2. Initialize UI Components
         self.orb = SiriOrbWidget()
@@ -49,6 +51,7 @@ class TitaniumApp(QObject):
         self.orb.request_user_prompt.connect(self.handle_user_prompt)
         self.orb.request_install.connect(self.install_system_integration)
         self.orb.request_toggle_listening.connect(self.toggle_live_session)
+        self.orb.request_toggle_live_mode.connect(self.toggle_live_conversation)
 
         self.update_orb_state.connect(self.orb.set_state)
         self.show_response_signal.connect(self._on_show_response)
@@ -136,12 +139,60 @@ class TitaniumApp(QObject):
         elif not is_active and self.orb.state == "listening" and not self.tts.is_speaking() and not self.wake_listener.in_active_session:
             self.update_orb_state.emit("idle")
 
+    def toggle_live_conversation(self):
+        """Toggles persistent Live Conversation mode."""
+        self.set_live_conversation_mode(not self.live_conversation_mode)
+
+    def set_live_conversation_mode(self, enable: bool):
+        """Controls persistent Gemini Live mode (mic never turns off, continuous conversation)."""
+        self.live_conversation_mode = enable
+        self.follow_conversation = enable
+        self.orb.set_live_mode(enable)
+        if enable:
+            self.live_client.start()
+            self.wake_listener.set_active_session(True)
+            self.update_orb_state.emit("listening")
+            self.show_response_signal.emit("🔴 Live Conversation Active (Always Listening)", "")
+        else:
+            self.wake_listener.set_active_session(False)
+            self.update_orb_state.emit("idle")
+            self.show_response_signal.emit("Live Conversation Paused", "")
+
     def on_wake_word_triggered(self, cmd: str):
         """Called when user says 'Hey Titanium' or speaks during an active session."""
         print(f"[TitaniumApp] Wake or voice received: '{cmd}'")
-        if cmd == "exit_session":
-            self.wake_listener.set_active_session(False)
-            self.speak_with_pause("Shant ho gaya hoon. Jab bhi zaroorat ho, bas 'Hey Titanium' boliye.", next_state="idle")
+        lower = cmd.lower().strip() if cmd else ""
+
+        # 1. Exit / Stop Live Conversation or active session
+        if any(w in lower for w in [
+            "stop live conversation", "disable live conversation", "turn off live conversation",
+            "stop live mode", "disable live mode", "exit live mode", "exit_session", "stop listening", "bye", "shant"
+        ]):
+            self.set_live_conversation_mode(False)
+            self.speak_with_pause("Live conversation mode disabled. Main normal wake word mode par switch ho gaya hoon.", next_state="idle")
+            return
+
+        # 2. Enable Live Conversation Mode
+        if any(w in lower for w in [
+            "start live conversation", "enable live conversation", "turn on live conversation",
+            "start live mode", "enable live mode", "live conversation start", "live mode start", "live conversation enable"
+        ]):
+            self.set_live_conversation_mode(True)
+            msg = "Live Conversation mode enabled! Ab main continuously sun raha hoon, bina 'Hey Titanium' bole direct baat kijiye."
+            self.show_response_signal.emit(msg, cmd)
+            self.speak_with_pause(msg, next_state="listening")
+            return
+
+        # 3. Follow conversation request (multi-turn follow when live mode is not enabled)
+        if any(w in lower for w in [
+            "follow the conversation", "follow conversation", "continue conversation", "please follow the conversation"
+        ]):
+            self.follow_conversation = True
+            self.wake_listener.set_active_session(True)
+            self.update_orb_state.emit("listening")
+            msg = "Haanji Parth! Main conversation follow kar raha hoon. Boliye!"
+            self.show_response_signal.emit(msg, cmd)
+            self.speak_with_pause(msg, next_state="listening")
             return
 
         # Spoken ONLY ONCE when the app starts / initial wake trigger
@@ -150,22 +201,26 @@ class TitaniumApp(QObject):
             self.wake_listener.set_active_session(True)
             greeting = "Haanji Parth, bataiye kya baat hai? Main hoon aapki help karne ke liye."
             self.show_response_signal.emit(greeting, "")
-            self.speak_with_pause(greeting, next_state="listening")
+            self.speak_with_pause(greeting, next_state="listening" if self.live_conversation_mode else "idle")
             return
 
         if cmd and len(cmd.strip()) > 1:
             self.wake_listener.set_active_session(True)
             self.handle_user_prompt(cmd.strip())
         else:
-            # Wake word triggered without trailing query: listen attentively without repeating canned lines
+            # Wake word triggered without trailing query: listen attentively
             self.wake_listener.set_active_session(True)
             self.update_orb_state.emit("listening")
             self.show_response_signal.emit("Listening...", "")
 
     def toggle_live_session(self):
         """Clicking the Orb toggles continuous Gemini Live conversation."""
-        if self.wake_listener.in_active_session:
+        if self.live_conversation_mode:
+            self.set_live_conversation_mode(False)
+            self.speak_with_pause("Live conversation paused.", next_state="idle")
+        elif self.wake_listener.in_active_session:
             self.wake_listener.set_active_session(False)
+            self.follow_conversation = False
             self.update_orb_state.emit("idle")
             self.show_response_signal.emit("Paused", "")
         else:
@@ -205,7 +260,20 @@ class TitaniumApp(QObject):
             answer = self.router.handle_user_query(prompt)
             # Display conversation turn (user prompt + AI response)
             self.show_response_signal.emit(answer, prompt)
-            self.speak_with_pause(answer)
+
+            # Determine whether mic stays continuously active (Live Mode) or returns to idle
+            should_stay_listening = self.live_conversation_mode or self.follow_conversation
+            next_st = "listening" if should_stay_listening else "idle"
+
+            def on_done():
+                if should_stay_listening:
+                    self.wake_listener.set_active_session(True)
+                    self.update_orb_state.emit("listening")
+                else:
+                    self.wake_listener.set_active_session(False)
+                    self.update_orb_state.emit("idle")
+
+            self.speak_with_pause(answer, on_done=on_done, next_state=next_st)
 
         threading.Thread(target=worker, daemon=True).start()
 

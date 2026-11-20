@@ -147,6 +147,10 @@ class CompactSubtitlePill(QWidget):
 
         clean_ai = ai_text.strip().replace("### ", "").replace("## ", "").replace("# ", "")
         self._last_ai_text = clean_ai
+        if "🔴" in clean_ai:
+            self.sparkle.setText("🔴")
+        else:
+            self.sparkle.setText("✨")
         self.ai_label.setText(clean_ai)
         self.ai_bubble.show()
 
