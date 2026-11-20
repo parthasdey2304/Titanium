@@ -8,3 +8,14 @@ requests>=2.31.0
 sounddevice>=0.4.6
 numpy>=1.26.0
 pynput>=1.7.6
+psutil>=5.9.0
+pygame>=2.5.0
+speechrecognition>=3.10.0
+scipy>=1.11.0
+
+# Headless In-Process Music Player & Windows COM
+yt-dlp>=2024.0.0
+pywin32>=306
+
+# Knowledge Graph & Codebase Intelligence
+graphifyy>=0.9.113

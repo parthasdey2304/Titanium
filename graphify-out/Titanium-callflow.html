@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Titanium — Complete Call Flow &amp; Architecture Documentation</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --warn: #fbbf24; --err: #f87171; --ok: #34d399;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+.container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+h1 { font-size: 2.4rem; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+h2 { font-size: 1.7rem; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }
+h3 { font-size: 1.25rem; margin: 32px 0 12px; color: var(--accent); }
+h4 { font-size: 1.05rem; margin: 20px 0 8px; color: var(--warn); }
+p { margin: 8px 0; color: var(--muted); }
+.subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 32px; }
+.mermaid { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 20px 0; overflow-x: auto; position: relative; }
+.mermaid.is-enhanced { padding: 0; overflow: hidden; min-height: 260px; }
+.mermaid-viewport { padding: 54px 24px 24px; overflow: hidden; cursor: grab; touch-action: none; min-height: 260px; }
+.mermaid-viewport.is-dragging { cursor: grabbing; }
+.mermaid-viewport svg { max-width: none !important; height: auto; transform-origin: 0 0; transition: transform 120ms ease; }
+.mermaid-toolbar { position: absolute; top: 10px; right: 10px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 6px; background: rgba(15,23,42,0.92); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.28); }
+.mermaid-toolbar button, .mermaid-toolbar .zoom-level { height: 28px; min-width: 32px; border: 1px solid var(--border); border-radius: 6px; background: #1e293b; color: var(--text); font: 600 0.78rem system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.mermaid-toolbar button { cursor: pointer; }
+.mermaid-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.mermaid-toolbar .zoom-level { min-width: 52px; color: var(--muted); background: transparent; }
+.call-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+.call-table th { background: #1a2744; color: var(--accent); text-align: left; padding: 10px 14px; border: 1px solid var(--border); }
+.call-table td { padding: 8px 14px; border: 1px solid var(--border); vertical-align: top; }
+.call-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.tag-async { background: #7c3aed33; color: #a78bfa; }
+.tag-class { background: #05966933; color: var(--ok); }
+.tag-func { background: #2563eb33; color: var(--accent); }
+.tag-cmd { background: #d9770633; color: var(--warn); }
+.tag-endpoint { background: #dc262633; color: var(--err); }
+.tag-hook { background: #db277733; color: #f472b6; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 16px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 16px 0; }
+.arrow-chain { font-family: 'Fira Code', monospace; font-size: 0.85rem; color: var(--accent); padding: 10px; background: rgba(56,189,248,0.06); border-radius: 6px; }
+code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 3px; font-size: 0.88em; }
+ul, ol { margin: 8px 0 8px 24px; color: var(--muted); }
+li { margin: 4px 0; }
+a { color: var(--accent); }
+hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+.nav { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9rem; }
+.nav a { text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+@media (max-width: 768px) { .container { padding: 16px; } h1 { font-size: 1.8rem; } }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Titanium — Complete Call Flow &amp; Architecture Documentation</h1>
+<p class="subtitle">Generated from graphify knowledge graph: 362 nodes, 626 edges, 18 communities. Commit: 281d86b</p>
+
+<div class="nav">
+    <a href="#overview">Architecture Overview</a>
+    <a href="#cli-skills">CLI &amp; Skill Installers</a>
+    <a href="#ingest-cache-update">Ingestion &amp; Updates</a>
+    <a href="#serve-api">Serving API</a>
+    <a href="#titanium-live-screen">Titanium Live Screen</a>
+    <a href="#titanium-traypy-startup">Titanium Traypy Startup</a>
+    <a href="#readmemd-titanium-installation">Readmemd Titanium Installation</a>
+    <a href="#app-titanium-tools">App Titanium Tools</a>
+    <a href="#titanium-code-viewerpy">Titanium Code Viewerpy</a>
+    <a href="#titanium-virtual-agentic">Titanium Virtual Agentic</a>
+</div>
+
+<!-- ====== Architecture Overview ====== -->
+<h2 id="overview">1. Architecture Overview</h2>
+
+<div class="mermaid">
+
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    CLI_SKILLS_9964CBB8("CLI &amp; Skill Installers<br/><small>151 nodes</small>")
+    class CLI_SKILLS_9964CBB8 module;
+    INGEST_CACHE_UPDATE_FF457338("Ingestion &amp; Updates<br/><small>103 nodes</small>")
+    class INGEST_CACHE_UPDATE_FF457338 module;
+    SERVE_API_35EC8E86("Serving API<br/><small>42 nodes</small>")
+    class SERVE_API_35EC8E86 module;
+    TITANIUM_LIVE_SCREEN_B3DC1E26("Titanium Live Screen<br/><small>24 nodes</small>")
+    class TITANIUM_LIVE_SCREEN_B3DC1E26 module;
+    TITANIUM_TRAYPY_STARTUP_94DD3447("Titanium Traypy Startup<br/><small>13 nodes</small>")
+    class TITANIUM_TRAYPY_STARTUP_94DD3447 module;
+    READMEMD_TITANIUM_INSTALLATION_A93D3586("Readmemd Titanium Installation<br/><small>9 nodes</small>")
+    class READMEMD_TITANIUM_INSTALLATION_A93D3586 module;
+    APP_TITANIUM_TOOLS_D51E5F42("App Titanium Tools<br/><small>9 nodes</small>")
+    class APP_TITANIUM_TOOLS_D51E5F42 module;
+    TITANIUM_CODE_VIEWERPY_5AFB091B("Titanium Code Viewerpy<br/><small>9 nodes</small>")
+    class TITANIUM_CODE_VIEWERPY_5AFB091B module;
+    TITANIUM_VIRTUAL_AGENTIC_E8623351("Titanium Virtual Agentic<br/><small>2 nodes</small>")
+    class TITANIUM_VIRTUAL_AGENTIC_E8623351 module;
+    CLI_SKILLS_9964CBB8 -->|imports x29| INGEST_CACHE_UPDATE_FF457338
+    CLI_SKILLS_9964CBB8 -->|imports x13| SERVE_API_35EC8E86
+    INGEST_CACHE_UPDATE_FF457338 -->|method x10| CLI_SKILLS_9964CBB8
+    CLI_SKILLS_9964CBB8 -->|calls x7| TITANIUM_LIVE_SCREEN_B3DC1E26
+    CLI_SKILLS_9964CBB8 -->|imports x5| TITANIUM_TRAYPY_STARTUP_94DD3447
+    SERVE_API_35EC8E86 -->|uses x4| INGEST_CACHE_UPDATE_FF457338
+    CLI_SKILLS_9964CBB8 -->|imports x3| APP_TITANIUM_TOOLS_D51E5F42
+    TITANIUM_LIVE_SCREEN_B3DC1E26 -->|uses x2| INGEST_CACHE_UPDATE_FF457338
+    CLI_SKILLS_9964CBB8 -->|contains x2| TITANIUM_CODE_VIEWERPY_5AFB091B
+    TITANIUM_LIVE_SCREEN_B3DC1E26 -->|method| CLI_SKILLS_9964CBB8
+    SERVE_API_35EC8E86 -->|calls| CLI_SKILLS_9964CBB8
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h4>Architecture Layers</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>Layer</th><th>Nodes</th><th>Communities</th></tr>
+      <tr><td>CLI &amp; Skill Installers</td><td>151</td><td><code>0, 1, 7, 8, 16</code></td></tr><tr><td>Ingestion &amp; Updates</td><td>103</td><td><code>3, 5, 6, 9, 10</code></td></tr><tr><td>Serving API</td><td>42</td><td><code>2, 12</code></td></tr><tr><td>Titanium Live Screen</td><td>24</td><td><code>4</code></td></tr><tr><td>Titanium Traypy Startup</td><td>13</td><td><code>11</code></td></tr><tr><td>Readmemd Titanium Installation</td><td>9</td><td><code>13</code></td></tr><tr><td>App Titanium Tools</td><td>9</td><td><code>14</code></td></tr><tr><td>Titanium Code Viewerpy</td><td>9</td><td><code>15</code></td></tr><tr><td>Titanium Virtual Agentic</td><td>2</td><td><code>17</code></td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Core Flow</h4>
+    <div class="arrow-chain">Readmemd Titanium Installation -&gt; CLI &amp; Skill Installers -&gt; Ingestion &amp; Updates -&gt; Serving API -&gt; Titanium Live Screen -&gt; Titanium Traypy Startup -&gt; App Titanium Tools</div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h4>Graph Report Highlights</h4>
+    <ul>
+      <li>362 nodes · 626 edges · 18 communities (5 shown, 13 thin omitted)</li>
+      <li>Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 49 edges (avg confidence: 0.88)</li>
+      <li>Token cost: 0 input · 0 output</li>
+      <li>1. `TitaniumApp` - 33 edges</li>
+      <li>2. `SiriOrbWidget` - 29 edges</li>
+      <li>3. `ElevenLabsTTS` - 19 edges</li>
+    </ul>
+  </div>
+</div>
+<hr>
+<!-- ====== 2. CLI & Skill Installers ====== -->
+<h2 id="cli-skills">2. CLI &amp; Skill Installers</h2>
+<p>CLI &amp; Skill Installers groups implementation around titanium, mainpy, tools, system, mostly in main.py, titanium/ui/subtitle_pill.py, titanium/tools/installer.py. This section covers 151 nodes and 277 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: CLI &amp; Skill Installers (151 nodes, 277 edges)
+    subgraph cli_skills_main_py_9040bb1f["main.py"]
+        main_titaniumapp_95944e1a("TitaniumApp<br/><small>main.py</small>")
+        main_b28b7af6("main.py")
+        main_titaniumapp_reveal_and_focus_f90d959f("reveal_and_focus()<br/><small>main.py</small>")
+        main_titaniumapp_on_show_response_8290a5c9("_on_show_response()<br/><small>main.py</small>")
+        main_titaniumapp_on_show_user_prompt_7922077b("_on_show_user_prompt()<br/><small>main.py</small>")
+        main_titaniumapp_toggle_orb_visibility_4db2793f("toggle_orb_visibility()<br/><small>main.py</small>")
+        main_titaniumapp_start_circle_search_9bbe6543("start_circle_search()<br/><small>main.py</small>")
+        main_titaniumapp_install_system_integration_17b545fc("install_system_integration()<br/><small>main.py</small>")
+        main_titaniumapp_speak_with_pause_db992e21("speak_with_pause()<br/><small>main.py</small>")
+        main_titaniumapp_toggle_live_conversation_fe9319a5("toggle_live_conversation()<br/><small>main.py</small>")
+        main_titaniumapp_set_live_conversation_mode_468ba3c6("set_live_conversation_mode()<br/><small>main.py</small>")
+        main_titaniumapp_on_wake_word_triggered_d978168f("on_wake_word_triggered()<br/><small>main.py</small>")
+        main_titaniumapp_toggle_live_session_d3e0acd0("toggle_live_session()<br/><small>main.py</small>")
+        main_titaniumapp_on_circle_crop_captured_bd8bb019("on_circle_crop_captured()<br/><small>main.py</small>")
+    end
+    titanium_core_agent_router_ee80e477("agent_router.py")
+    titanium_core_elevenlabs_tts_c685bd74("elevenlabs_tts.py")
+    titanium_core_live_client_34d832bb("live_client.py")
+    titanium_tools_music_player_3459c5d5("music_player.py")
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_reveal_and_focus_f90d959f
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_on_show_response_8290a5c9
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_on_show_user_prompt_7922077b
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_toggle_orb_visibility_4db2793f
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_start_circle_search_9bbe6543
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_install_system_integration_17b545fc
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_speak_with_pause_db992e21
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_toggle_live_conversation_fe9319a5
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_set_live_conversation_mode_468ba3c6
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_on_wake_word_triggered_d978168f
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_toggle_live_session_d3e0acd0
+    main_titaniumapp_95944e1a -->|method| main_titaniumapp_on_circle_crop_captured_bd8bb019
+    main_titaniumapp_on_wake_word_triggered_d978168f -->|calls| main_titaniumapp_speak_with_pause_db992e21
+    main_titaniumapp_on_wake_word_triggered_d978168f -->|calls| main_titaniumapp_set_live_conversation_mode_468ba3c6
+    main_titaniumapp_toggle_live_conversation_fe9319a5 -->|calls| main_titaniumapp_set_live_conversation_mode_468ba3c6
+    main_titaniumapp_toggle_live_session_d3e0acd0 -->|calls| main_titaniumapp_set_live_conversation_mode_468ba3c6
+    main_titaniumapp_toggle_live_session_d3e0acd0 -->|calls| main_titaniumapp_speak_with_pause_db992e21
+    main_b28b7af6 -->|imports| titanium_tools_music_player_3459c5d5
+    main_b28b7af6 -->|imports| titanium_core_elevenlabs_tts_c685bd74
+    main_b28b7af6 -->|imports| titanium_core_agent_router_ee80e477
+    main_b28b7af6 -->|imports| titanium_core_live_client_34d832bb
+    titanium_core_agent_router_ee80e477 -->|imports| titanium_tools_music_player_3459c5d5
+    titanium_core_live_client_34d832bb -->|imports| titanium_core_elevenlabs_tts_c685bd74
+    %% Omitted for readability: 133 nodes, 0 edges
+    class main_titaniumapp_95944e1a klass;
+    class main_b28b7af6 module;
+    class main_titaniumapp_reveal_and_focus_f90d959f function;
+    class main_titaniumapp_on_show_response_8290a5c9 function;
+    class main_titaniumapp_on_show_user_prompt_7922077b function;
+    class main_titaniumapp_toggle_orb_visibility_4db2793f function;
+    class main_titaniumapp_start_circle_search_9bbe6543 function;
+    class main_titaniumapp_install_system_integration_17b545fc function;
+    class main_titaniumapp_speak_with_pause_db992e21 function;
+    class main_titaniumapp_toggle_live_conversation_fe9319a5 function;
+    class main_titaniumapp_set_live_conversation_mode_468ba3c6 function;
+    class main_titaniumapp_on_wake_word_triggered_d978168f function;
+    class main_titaniumapp_toggle_live_session_d3e0acd0 function;
+    class main_titaniumapp_on_circle_crop_captured_bd8bb019 function;
+    class titanium_core_agent_router_ee80e477 api;
+    class titanium_core_elevenlabs_tts_c685bd74 module;
+    class titanium_core_live_client_34d832bb entry;
+    class titanium_tools_music_player_3459c5d5 module;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>get_system_info()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small><br><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>get_system_info() node in titanium/tools/system_tools.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>lock_workstation()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small><br><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>lock_workstation() node in titanium/tools/system_tools.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>set_system_volume()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>set_system_volume() node in titanium/tools/system_tools.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>circle_search.py</code><br><small style="color:var(--muted)">titanium/ui/circle_search.py</small><br>+23 more</td>
+  <td>Module file in main.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>config.py</code><br><small style="color:var(--muted)">titanium/config.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>elevenlabs_tts.py</code><br><small style="color:var(--muted)">titanium/core/elevenlabs_tts.py</small><br><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br>+1 more</td>
+  <td><code>dotenv</code><br><code>os</code><br><code>pathlib</code></td>
+  <td>Module file in titanium/config.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>app_launcher.py</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>config.py</code><br><small style="color:var(--muted)">titanium/config.py</small><br><code>get_system_info()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small><br>+16 more</td>
+  <td>Module file in titanium/core/agent_router.py.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>elevenlabs_tts.py</code><br><small style="color:var(--muted)">titanium/core/elevenlabs_tts.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>config.py</code><br><small style="color:var(--muted)">titanium/config.py</small><br><code>io</code><br><code>numpy</code><br>+7 more</td>
+  <td>Module file in titanium/core/elevenlabs_tts.py.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>asyncio</code><br><code>config.py</code><br><small style="color:var(--muted)">titanium/config.py</small><br><code>elevenlabs_tts.py</code><br><small style="color:var(--muted)">titanium/core/elevenlabs_tts.py</small><br>+7 more</td>
+  <td>Module file in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>screen_streamer.py</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>io</code><br><code>mss</code><br><code>pil</code><br>+3 more</td>
+  <td>Module file in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>wake_listener.py</code><br><small style="color:var(--muted)">titanium/core/wake_listener.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>math</code><br><code>numpy</code><br><code>scipy</code><br>+5 more</td>
+  <td>Module file in titanium/core/wake_listener.py.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>app_launcher.py</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>os</code><br><code>pathlib</code><br><code>subprocess</code><br>+2 more</td>
+  <td>Module file in titanium/tools/app_launcher.py.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>tools/__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>get_system_info()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small><br><code>lock_workstation()</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br>+2 more</td>
+  <td>Module file in titanium/tools/__init__.py.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>installer.py</code><br><small style="color:var(--muted)">titanium/tools/installer.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>os</code><br><code>pathlib</code><br><code>subprocess</code><br>+3 more</td>
+  <td>Module file in titanium/tools/installer.py.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>music_player.py</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>os</code><br><code>pythoncom</code><br><code>queue</code><br>+6 more</td>
+  <td>Module file in titanium/tools/music_player.py.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>system_navigator.py</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>os</code><br><code>pathlib</code><br><code>platform</code><br>+3 more</td>
+  <td>Module file in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>system_tools.py</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>ctypes</code><br><code>os</code><br><code>subprocess</code><br>+1 more</td>
+  <td>Module file in titanium/tools/system_tools.py.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>Any</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Any node in project.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>circle_search.py</code><br><small style="color:var(--muted)">titanium/ui/circle_search.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>io</code><br><code>mss</code><br><code>pil</code><br>+4 more</td>
+  <td>Module file in titanium/ui/circle_search.py.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>code_viewer.py</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>pyside6_qtcore</code><br><code>pyside6_qtgui</code><br><code>pyside6_qtwidgets</code></td>
+  <td>Module file in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>ui/__init__.py</code><br><small style="color:var(--muted)">titanium/ui/__init__.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>CircleToSearchOverlay</code><br><small style="color:var(--muted)">titanium/ui/circle_search.py</small><br><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+1 more</td>
+  <td>Module file in titanium/ui/__init__.py.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>siri_orb.py</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>math</code><br><code>numpy</code><br><code>pathlib</code><br>+5 more</td>
+  <td>Module file in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>subtitle_pill.py</code><br><small style="color:var(--muted)">titanium/ui/subtitle_pill.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>pyside6_qtcore</code><br><code>pyside6_qtgui</code><br><code>pyside6_qtwidgets</code></td>
+  <td>Module file in titanium/ui/subtitle_pill.py.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>tray.py</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>main.py</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>os</code><br><code>pathlib</code><br><code>pyside6_qtgui</code><br>+4 more</td>
+  <td>Module file in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>Sets system master volume using Windows nircmd or PowerShell (0 to 100).</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Sets system master volume using Windows nircmd or PowerShell (0 to 100)..</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>Returns basic system status.</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Returns basic system status..</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>Locks the Windows computer.</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Locks the Windows computer..</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>asyncio</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>asyncio node in project.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>ctypes</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>system_tools.py</code><br><small style="color:var(--muted)">titanium/tools/system_tools.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>ctypes node in project.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>dotenv</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>config.py</code><br><small style="color:var(--muted)">titanium/config.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>dotenv node in project.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>google</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>google node in project.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>main.py</code></td><td>49 nodes</td></tr>
+<tr><td><code>titanium/ui/subtitle_pill.py</code></td><td>13 nodes</td></tr>
+<tr><td><code>titanium/tools/installer.py</code></td><td>12 nodes</td></tr>
+<tr><td><code>titanium/tools/system_tools.py</code></td><td>7 nodes</td></tr>
+<tr><td><code>titanium/ui/siri_orb.py</code></td><td>7 nodes</td></tr>
+<tr><td><code>titanium/core/elevenlabs_tts.py</code></td><td>5 nodes</td></tr>
+<tr><td><code>titanium/core/live_client.py</code></td><td>3 nodes</td></tr>
+<tr><td><code>titanium/core/wake_listener.py</code></td><td>3 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: imports x63, imports x62, calls x46, explains x37. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 3. Ingestion & Updates ====== -->
+<h2 id="ingest-cache-update">3. Ingestion &amp; Updates</h2>
+<p>Ingestion &amp; Updates groups implementation around titanium, music, siri, orbpy, mostly in titanium/ui/siri_orb.py, titanium/tools/music_player.py, titanium/memory/sqlite_memory.py. This section covers 103 nodes and 139 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Ingestion &amp; Updates (103 nodes, 139 edges)
+    subgraph ingest_cache_update_titanium_core_elevenlabs_tts_88f0379e["titanium/core/elevenlabs_tts.py"]
+        titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66("ElevenLabsTTS<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_reque_718f1236("_request_tts_audio()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_sanit_a91f6678("_sanitize_text()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_stop_ec2c11b6("stop_speaking()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_is_sp_944780d2("is_speaking()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_init_92fe817e("__init__()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_init_ff22e6db("_init_chime()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_set_a_eac3d7be("set_api_key()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_resol_a04b2c22("resolve_voice_id()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+        titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0("_speak_worker()<br/><small>titanium/core/elevenlabs_tts.py</small>")
+    end
+    subgraph ingest_cache_update_titanium_ui_siri_orb_py_fa17aae1["titanium/ui/siri_orb.py"]
+        titanium_ui_siri_orb_siriorbwidget_3f7d5bfd("SiriOrbWidget<br/><small>titanium/ui/siri_orb.py</small>")
+        titanium_ui_siri_orb_siriorbwidget_paintevent_9081da17("paintEvent()<br/><small>titanium/ui/siri_orb.py</small>")
+        titanium_ui_siri_orb_siriorbwidget_dock_to_top_r_c64cf092("_dock_to_top_right()<br/><small>titanium/ui/siri_orb.py</small>")
+        titanium_ui_siri_orb_siriorbwidget_update_animat_0b8a3a81("_update_animation()<br/><small>titanium/ui/siri_orb.py</small>")
+        titanium_ui_siri_orb_siriorbwidget_generate_orga_fc948008("_generate_organic_perimeter()<br/><small>titanium/ui/siri_orb.py</small>")
+    end
+    titanium_core_wake_listener_wakewordlistener_4c357cf7("WakeWordListener<br/><small>titanium/core/wake_listener.py</small>")
+    titanium_memory_sqlite_memory_memorymanager_e0c6162e("MemoryManager<br/><small>titanium/memory/sqlite_memory.py</small>")
+    titanium_tools_music_player_titaniummusicplayer_8408deac("TitaniumMusicPlayer<br/><small>titanium/tools/music_player.py</small>")
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_reque_718f1236
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_sanit_a91f6678
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_stop_ec2c11b6
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_is_sp_944780d2
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_init_92fe817e
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_init_ff22e6db
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_set_a_eac3d7be
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_resol_a04b2c22
+    titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 -->|method| titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0
+    titanium_ui_siri_orb_siriorbwidget_3f7d5bfd -->|method| titanium_ui_siri_orb_siriorbwidget_dock_to_top_r_c64cf092
+    titanium_ui_siri_orb_siriorbwidget_3f7d5bfd -->|method| titanium_ui_siri_orb_siriorbwidget_update_animat_0b8a3a81
+    titanium_ui_siri_orb_siriorbwidget_3f7d5bfd -->|method| titanium_ui_siri_orb_siriorbwidget_generate_orga_fc948008
+    titanium_ui_siri_orb_siriorbwidget_3f7d5bfd -->|method| titanium_ui_siri_orb_siriorbwidget_paintevent_9081da17
+    titanium_core_elevenlabs_tts_elevenlabstts_init_92fe817e -->|calls| titanium_core_elevenlabs_tts_elevenlabstts_init_ff22e6db
+    titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0 -->|calls| titanium_core_elevenlabs_tts_elevenlabstts_resol_a04b2c22
+    titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0 -->|calls| titanium_core_elevenlabs_tts_elevenlabstts_reque_718f1236
+    titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0 -->|calls| titanium_core_elevenlabs_tts_elevenlabstts_sanit_a91f6678
+    %% Omitted for readability: 85 nodes, 0 edges
+    class titanium_core_elevenlabs_tts_elevenlabstts_da6bcb66 klass;
+    class titanium_core_elevenlabs_tts_elevenlabstts_reque_718f1236 function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_sanit_a91f6678 function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_stop_ec2c11b6 function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_is_sp_944780d2 function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_init_92fe817e function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_init_ff22e6db function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_set_a_eac3d7be api;
+    class titanium_core_elevenlabs_tts_elevenlabstts_resol_a04b2c22 function;
+    class titanium_core_elevenlabs_tts_elevenlabstts_speak_99c4d1c0 function;
+    class titanium_ui_siri_orb_siriorbwidget_3f7d5bfd klass;
+    class titanium_ui_siri_orb_siriorbwidget_paintevent_9081da17 function;
+    class titanium_ui_siri_orb_siriorbwidget_dock_to_top_r_c64cf092 function;
+    class titanium_ui_siri_orb_siriorbwidget_update_animat_0b8a3a81 function;
+    class titanium_ui_siri_orb_siriorbwidget_generate_orga_fc948008 function;
+    class titanium_core_wake_listener_wakewordlistener_4c357cf7 klass;
+    class titanium_memory_sqlite_memory_memorymanager_e0c6162e klass;
+    class titanium_tools_music_player_titaniummusicplayer_8408deac klass;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">main.py</small><br><code>__init__.py</code><br><small style="color:var(--muted)">titanium/ui/__init__.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small><br>+1 more</td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_dock_to_top_right()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+19 more</td>
+  <td>SiriOrbWidget node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>._generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_paint_idle_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_listening_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_seeing_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+3 more</td>
+  <td>No direct outbound edge</td>
+  <td>._generate_organic_perimeter() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>.contextMenuEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.contextMenuEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>._dock_to_top_right()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>reveal()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._dock_to_top_right() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>._draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_paint_idle_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_listening_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_seeing_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+3 more</td>
+  <td>No direct outbound edge</td>
+  <td>._draw_amazingui_specular() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>._draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_paint_idle_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_listening_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_seeing_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+3 more</td>
+  <td>No direct outbound edge</td>
+  <td>._draw_amazingui_texture() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_dock_to_top_right()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>.__init__() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>.mouseDoubleClickEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mouseDoubleClickEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>.mouseMoveEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mouseMoveEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>.mousePressEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mousePressEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>.mouseReleaseEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mouseReleaseEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>._paint_idle_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>._paint_idle_sphere() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>._paint_listening_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>._paint_listening_sphere() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>._paint_seeing_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>._paint_seeing_sphere() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>._paint_speaking_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>._paint_speaking_sphere() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>._paint_thinking_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_draw_amazingui_specular()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_draw_amazingui_texture()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_generate_organic_perimeter()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>._paint_thinking_sphere() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>.paintEvent()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><code>_paint_idle_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_listening_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br><code>_paint_seeing_sphere()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small><br>+2 more</td>
+  <td>.paintEvent() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>._prompt_dialog()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>Builds structured prompts for model calls.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>._update_animation()</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SiriOrbWidget</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._update_animation() node in titanium/ui/siri_orb.py.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>QPainter</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QPainter node in project.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>QPainterPath</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QPainterPath node in project.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>QWidget</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QWidget node in project.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>Positions the sphere at the top-right corner with 16px margins.</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Positions the sphere at the top-right corner with 16px margins..</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>Calculates dynamic living-energy oscillations for AmazingUI Sphere and advances…</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Calculates dynamic living-energy oscillations for AmazingUI Sphere and advances….</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>Constructs an organic living perimeter with smooth subtle harmonic surface…</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Constructs an organic living perimeter with smooth subtle harmonic surface….</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>Paints the current frame of the authentic AmazingUI Sphere video.</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Paints the current frame of the authentic AmazingUI Sphere video..</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>Sphere for AI Assistant by AmazingUI (Dribbble shot 26280534). Features: -…</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Sphere for AI Assistant by AmazingUI (Dribbble shot 26280534). Features: -….</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>Glossy 3D glass specular curvature highlight (Cinema 4D style).</code><br><small style="color:var(--muted)">titanium/ui/siri_orb.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Glossy 3D glass specular curvature highlight (Cinema 4D style)..</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>TitaniumMusicPlayer</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small><br><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br>+2 more</td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small><br><code>_player_loop()</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small><br><code>duck_volume()</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small><br>+8 more</td>
+  <td>TitaniumMusicPlayer node in titanium/tools/music_player.py.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>.get_instance()</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>__init__()</code><br><small style="color:var(--muted)">main.py</small><br><code>TitaniumMusicPlayer</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.get_instance() node in titanium/tools/music_player.py.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/ui/siri_orb.py</code></td><td>25 nodes</td></tr>
+<tr><td><code>titanium/tools/music_player.py</code></td><td>22 nodes</td></tr>
+<tr><td><code>titanium/core/wake_listener.py</code></td><td>16 nodes</td></tr>
+<tr><td><code>titanium/memory/sqlite_memory.py</code></td><td>16 nodes</td></tr>
+<tr><td><code>titanium/core/elevenlabs_tts.py</code></td><td>14 nodes</td></tr>
+<tr><td><code>main.py</code></td><td>1 nodes</td></tr>
+<tr><td><code>titanium/memory/__init__.py</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: method x55, calls x35, explains x30, references x11. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 4. Serving API ====== -->
+<h2 id="serve-api">4. Serving API</h2>
+<p>Serving API groups implementation around titanium, system, tools, navigatorpy, mostly in titanium/tools/system_navigator.py, titanium/ui/circle_search.py, titanium/core/agent_router.py. This section covers 42 nodes and 60 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Serving API (42 nodes, 60 edges)
+    subgraph serve_api_titanium_ui_circle_search_py_1a116394["titanium/ui/circle_search.py"]
+        titanium_ui_circle_search_circletosearchoverlay_ef84e73c("CircleToSearchOverlay<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_5e0341e5("_capture_crop()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_3877750d("__init__()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_0fcf398e("trigger()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_e2b12964("mousePressEvent()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_96d13038("mouseMoveEvent()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_096b583a("mouseReleaseEvent()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_05c6e564("keyPressEvent()<br/><small>titanium/ui/circle_search.py</small>")
+        titanium_ui_circle_search_circletosearchoverlay_951e620a("paintEvent()<br/><small>titanium/ui/circle_search.py</small>")
+    end
+    subgraph serve_api_titanium_core_agent_router_py_90d1eba8["titanium/core/agent_router.py"]
+        titanium_core_agent_router_agentrouter_handle_us_5bc805d6("handle_user_query()<br/><small>titanium/core/agent_router.py</small>")
+        titanium_core_agent_router_agentrouter_8898bff8("AgentRouter<br/><small>titanium/core/agent_router.py</small>")
+        titanium_core_agent_router_agentrouter_analyze_i_2dfd8049("analyze_image_crop()<br/><small>titanium/core/agent_router.py</small>")
+        titanium_core_agent_router_agentrouter_init_38dd5c5f("__init__()<br/><small>titanium/core/agent_router.py</small>")
+        titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee("_init_chat()<br/><small>titanium/core/agent_router.py</small>")
+        titanium_core_agent_router_agentrouter_build_sys_849bd2f6("_build_system_instruction()<br/><small>titanium/core/agent_router.py</small>")
+    end
+    subgraph serve_api_titanium_tools_system_navigator_py_4f2d7a0a["titanium/tools/system_navigator.py"]
+        titanium_tools_system_navigator_systemnavigator_0dd70221("SystemNavigator<br/><small>titanium/tools/system_navigator.py</small>")
+        titanium_tools_system_navigator_systemnavigator_b6de7048("launch_app()<br/><small>titanium/tools/system_navigator.py</small>")
+        titanium_tools_system_navigator_systemnavigator_9d799750("open_file()<br/><small>titanium/tools/system_navigator.py</small>")
+    end
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_5e0341e5
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_3877750d
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_0fcf398e
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_e2b12964
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_96d13038
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_096b583a
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_05c6e564
+    titanium_ui_circle_search_circletosearchoverlay_ef84e73c -->|method| titanium_ui_circle_search_circletosearchoverlay_951e620a
+    titanium_core_agent_router_agentrouter_8898bff8 -->|method| titanium_core_agent_router_agentrouter_analyze_i_2dfd8049
+    titanium_core_agent_router_agentrouter_8898bff8 -->|method| titanium_core_agent_router_agentrouter_init_38dd5c5f
+    titanium_core_agent_router_agentrouter_8898bff8 -->|method| titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee
+    titanium_core_agent_router_agentrouter_8898bff8 -->|method| titanium_core_agent_router_agentrouter_build_sys_849bd2f6
+    titanium_core_agent_router_agentrouter_8898bff8 -->|method| titanium_core_agent_router_agentrouter_handle_us_5bc805d6
+    titanium_tools_system_navigator_systemnavigator_0dd70221 -->|method| titanium_tools_system_navigator_systemnavigator_9d799750
+    titanium_tools_system_navigator_systemnavigator_0dd70221 -->|method| titanium_tools_system_navigator_systemnavigator_b6de7048
+    titanium_ui_circle_search_circletosearchoverlay_096b583a -->|calls| titanium_ui_circle_search_circletosearchoverlay_5e0341e5
+    titanium_core_agent_router_agentrouter_analyze_i_2dfd8049 -->|calls| titanium_core_agent_router_agentrouter_build_sys_849bd2f6
+    titanium_core_agent_router_agentrouter_handle_us_5bc805d6 -->|calls| titanium_tools_system_navigator_systemnavigator_9d799750
+    titanium_core_agent_router_agentrouter_handle_us_5bc805d6 -->|calls| titanium_tools_system_navigator_systemnavigator_b6de7048
+    titanium_core_agent_router_agentrouter_handle_us_5bc805d6 -->|calls| titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee
+    titanium_core_agent_router_agentrouter_handle_us_5bc805d6 -->|calls| titanium_core_agent_router_agentrouter_build_sys_849bd2f6
+    titanium_core_agent_router_agentrouter_init_38dd5c5f -->|calls| titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee
+    titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee -->|calls| titanium_core_agent_router_agentrouter_build_sys_849bd2f6
+    titanium_core_agent_router_agentrouter_8898bff8 -->|uses| titanium_tools_system_navigator_systemnavigator_0dd70221
+    %% Omitted for readability: 24 nodes, 0 edges
+    class titanium_ui_circle_search_circletosearchoverlay_ef84e73c klass;
+    class titanium_ui_circle_search_circletosearchoverlay_5e0341e5 function;
+    class titanium_ui_circle_search_circletosearchoverlay_3877750d function;
+    class titanium_ui_circle_search_circletosearchoverlay_0fcf398e function;
+    class titanium_ui_circle_search_circletosearchoverlay_e2b12964 async;
+    class titanium_ui_circle_search_circletosearchoverlay_96d13038 function;
+    class titanium_ui_circle_search_circletosearchoverlay_096b583a function;
+    class titanium_ui_circle_search_circletosearchoverlay_05c6e564 async;
+    class titanium_ui_circle_search_circletosearchoverlay_951e620a function;
+    class titanium_core_agent_router_agentrouter_handle_us_5bc805d6 function;
+    class titanium_core_agent_router_agentrouter_8898bff8 api;
+    class titanium_core_agent_router_agentrouter_analyze_i_2dfd8049 function;
+    class titanium_core_agent_router_agentrouter_init_38dd5c5f function;
+    class titanium_core_agent_router_agentrouter_init_chat_9ccbd9ee function;
+    class titanium_core_agent_router_agentrouter_build_sys_849bd2f6 function;
+    class titanium_tools_system_navigator_systemnavigator_0dd70221 klass;
+    class titanium_tools_system_navigator_systemnavigator_b6de7048 function;
+    class titanium_tools_system_navigator_systemnavigator_9d799750 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">main.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small><br><code>TitaniumApp</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>_build_system_instruction()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>_init_chat()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br>+5 more</td>
+  <td>AgentRouter node in titanium/core/agent_router.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small><br><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>close_active_window_or_tab()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>close_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>get_os()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br>+5 more</td>
+  <td>SystemNavigator node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>.analyze_image_crop()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>_build_system_instruction()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td>Orchestrates analysis and returns structured documentation data.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>._build_system_instruction()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_init_chat()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>analyze_image_crop()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br>+1 more</td>
+  <td>No direct outbound edge</td>
+  <td>._build_system_instruction() node in titanium/core/agent_router.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>.handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>_build_system_instruction()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>_init_chat()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>close_active_window_or_tab()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br>+6 more</td>
+  <td>.handle_user_query() node in titanium/core/agent_router.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>_init_chat()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>get_instance()</code><br><small style="color:var(--muted)">titanium/tools/music_player.py</small><br><code>MemoryManager</code><br><small style="color:var(--muted)">titanium/memory/sqlite_memory.py</small></td>
+  <td>.__init__() node in titanium/core/agent_router.py.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>._init_chat()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>AgentRouter</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>_build_system_instruction()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>get_user_directories()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>open_folder()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>get_user_directories() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>.close_active_window_or_tab()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.close_active_window_or_tab() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>.close_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.close_app() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>.get_os()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.get_os() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>.launch_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><code>list_installed_applications()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>open_folder()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>open_settings()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>.launch_app() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>.list_installed_applications()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.list_installed_applications() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>.open_file()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.open_file() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>.open_folder()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><code>get_user_directories()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>.open_folder() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>.open_settings()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>handle_user_query()</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small><br><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small><br><code>SystemNavigator</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.open_settings() node in titanium/tools/system_navigator.py.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>Any</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Any node in project.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>Path</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Path node in project.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>Circle to Search vision analysis using Gemini Flash.</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Circle to Search vision analysis using Gemini Flash..</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>Intelligent Model Router with Zero-Latency Local Action Dispatch.</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Intelligent Model Router with Zero-Latency Local Action Dispatch..</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>Initializes continuous chat session for conversational Gemini Live feel.</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Initializes continuous chat session for conversational Gemini Live feel..</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>Processes query with instant local app dispatch + Gemini Live conversational…</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Processes query with instant local app dispatch + Gemini Live conversational….</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>Opens a file with default system handler.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Opens a file with default system handler..</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>Discovers applications installed across Windows, macOS, or Linux.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Discovers applications installed across Windows, macOS, or Linux..</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>Launches an application across Windows, macOS, or Linux.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Launches an application across Windows, macOS, or Linux..</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>Closes a specific application by process name.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Closes a specific application by process name..</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>Closes the currently active window (Alt+F4) or browser tab (Ctrl+W).</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Closes the currently active window (Alt+F4) or browser tab (Ctrl+W)..</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>Universal Cross-Platform (Windows, macOS, Linux) System Navigator: -…</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Universal Cross-Platform (Windows, macOS, Linux) System Navigator: -….</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>Opens native System Settings on Windows, macOS, or Linux.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Opens native System Settings on Windows, macOS, or Linux..</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>Opens a folder in Windows Explorer, macOS Finder, or Linux File Manager.</code><br><small style="color:var(--muted)">titanium/tools/system_navigator.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Opens a folder in Windows Explorer, macOS Finder, or Linux File Manager..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/tools/system_navigator.py</code></td><td>18 nodes</td></tr>
+<tr><td><code>titanium/ui/circle_search.py</code></td><td>11 nodes</td></tr>
+<tr><td><code>titanium/core/agent_router.py</code></td><td>10 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: method x21, calls x16, explains x14, references x7. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 5. Titanium Live Screen ====== -->
+<h2 id="titanium-live-screen">5. Titanium Live Screen</h2>
+<p>Titanium Live Screen groups implementation around titanium, live, screen, clientpy, mostly in titanium/core/live_client.py, titanium/core/screen_streamer.py. This section covers 24 nodes and 30 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Titanium Live Screen (24 nodes, 30 edges)
+    subgraph titanium_live_screen_titanium_core_live_client_p_964cdcd2["titanium/core/live_client.py"]
+        titanium_core_live_client_geminiliveclient_b1ae050a("GeminiLiveClient<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_toggl_daf12d65("toggle_screen_share()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_init_5f72a8b0("__init__()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_is_sc_8b69224b("is_screen_sharing()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_run_e_14a90d2b("_run_event_loop()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_on_sc_16e54008("_on_screen_frame()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_conne_61468818("_connect_and_listen()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_send_d92adbf0("send_text()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_geminiliveclient_send_5b1b1b04("_send_text_async()<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_rationale_111_8b49379d("Callback from ScreenStreamer sending fr...<br/><small>titanium/core/live_client.py</small>")
+        titanium_core_live_client_rationale_12_26c988ed("Manages real-time bidirectional WebSock...<br/><small>titanium/core/live_client.py</small>")
+    end
+    subgraph titanium_live_screen_titanium_core_screen_stream_a0cc4759["titanium/core/screen_streamer.py"]
+        titanium_core_screen_streamer_screenstreamer_b2267912("ScreenStreamer<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_ini_59f5f1e9("__init__()<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_sta_375b2c83("start()<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_sto_1c02294b("stop()<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_is_42d655d2("is_running()<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_cap_c4aced2e("_capture_loop()<br/><small>titanium/core/screen_streamer.py</small>")
+        titanium_core_screen_streamer_screenstreamer_cap_921ed401("capture_fullscreen()<br/><small>titanium/core/screen_streamer.py</small>")
+    end
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_toggl_daf12d65
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_on_sc_16e54008
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_is_sc_8b69224b
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_init_5f72a8b0
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_run_e_14a90d2b
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_conne_61468818
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_send_d92adbf0
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|method| titanium_core_live_client_geminiliveclient_send_5b1b1b04
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_ini_59f5f1e9
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_sta_375b2c83
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_sto_1c02294b
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_is_42d655d2
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_cap_c4aced2e
+    titanium_core_screen_streamer_screenstreamer_b2267912 -->|method| titanium_core_screen_streamer_screenstreamer_cap_921ed401
+    titanium_core_live_client_geminiliveclient_init_5f72a8b0 -->|calls| titanium_core_screen_streamer_screenstreamer_b2267912
+    titanium_core_live_client_geminiliveclient_run_e_14a90d2b -->|calls| titanium_core_live_client_geminiliveclient_conne_61468818
+    titanium_core_live_client_geminiliveclient_send_d92adbf0 -->|calls| titanium_core_live_client_geminiliveclient_send_5b1b1b04
+    titanium_core_live_client_geminiliveclient_b1ae050a -->|uses| titanium_core_screen_streamer_screenstreamer_b2267912
+    titanium_core_live_client_geminiliveclient_is_sc_8b69224b -->|calls| titanium_core_screen_streamer_screenstreamer_is_42d655d2
+    titanium_core_live_client_geminiliveclient_toggl_daf12d65 -->|calls| titanium_core_screen_streamer_screenstreamer_is_42d655d2
+    titanium_core_live_client_geminiliveclient_toggl_daf12d65 -->|calls| titanium_core_screen_streamer_screenstreamer_sto_1c02294b
+    titanium_core_live_client_geminiliveclient_toggl_daf12d65 -->|calls| titanium_core_screen_streamer_screenstreamer_sta_375b2c83
+    %% Omitted for readability: 6 nodes, 0 edges
+    class titanium_core_live_client_geminiliveclient_b1ae050a entry;
+    class titanium_core_live_client_geminiliveclient_toggl_daf12d65 function;
+    class titanium_core_live_client_geminiliveclient_init_5f72a8b0 function;
+    class titanium_core_live_client_geminiliveclient_is_sc_8b69224b function;
+    class titanium_core_live_client_geminiliveclient_run_e_14a90d2b function;
+    class titanium_core_live_client_geminiliveclient_on_sc_16e54008 function;
+    class titanium_core_live_client_geminiliveclient_conne_61468818 function;
+    class titanium_core_live_client_geminiliveclient_send_d92adbf0 function;
+    class titanium_core_live_client_geminiliveclient_send_5b1b1b04 async;
+    class titanium_core_live_client_rationale_111_8b49379d concept;
+    class titanium_core_live_client_rationale_12_26c988ed concept;
+    class titanium_core_screen_streamer_screenstreamer_b2267912 async;
+    class titanium_core_screen_streamer_screenstreamer_ini_59f5f1e9 function;
+    class titanium_core_screen_streamer_screenstreamer_sta_375b2c83 function;
+    class titanium_core_screen_streamer_screenstreamer_sto_1c02294b function;
+    class titanium_core_screen_streamer_screenstreamer_is_42d655d2 function;
+    class titanium_core_screen_streamer_screenstreamer_cap_c4aced2e function;
+    class titanium_core_screen_streamer_screenstreamer_cap_921ed401 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">main.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small><br><code>TitaniumApp</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>_connect_and_listen()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>_on_screen_frame()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br>+8 more</td>
+  <td>GeminiLiveClient node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>live_client.py</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>_capture_loop()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>capture_fullscreen()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br>+3 more</td>
+  <td>ScreenStreamer node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>._connect_and_listen()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_run_event_loop()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._connect_and_listen() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>ElevenLabsTTS</code><br><small style="color:var(--muted)">titanium/core/elevenlabs_tts.py</small><br><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>.__init__() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>.is_screen_sharing()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>is_running()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>.is_screen_sharing() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>._on_screen_frame()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._on_screen_frame() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>._run_event_loop()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>_connect_and_listen()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>._run_event_loop() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>.send_text()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><code>_send_text_async()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>.send_text() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>._send_text_async()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>send_text()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._send_text_async() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>.toggle_screen_share()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiLiveClient</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>toggle_screen_share()</code><br><small style="color:var(--muted)">main.py</small></td>
+  <td><code>is_running()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>start()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>stop()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>.toggle_screen_share() node in titanium/core/live_client.py.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>.capture_fullscreen()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.capture_fullscreen() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>._capture_loop()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._capture_loop() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.__init__() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>.is_running()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>is_screen_sharing()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small><br><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>toggle_screen_share()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.is_running() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>.start()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>toggle_screen_share()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.start() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>.stop()</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>ScreenStreamer</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small><br><code>toggle_screen_share()</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.stop() node in titanium/core/screen_streamer.py.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>Toggles real-time screen frame streaming into Gemini Live.</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Toggles real-time screen frame streaming into Gemini Live..</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>Callback from ScreenStreamer sending frames to Gemini Live.</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Callback from ScreenStreamer sending frames to Gemini Live..</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>Manages real-time bidirectional WebSocket session with Gemini 3.8 Live: -…</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Manages real-time bidirectional WebSocket session with Gemini 3.8 Live: -….</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>Sends a text message into the active Live session.</code><br><small style="color:var(--muted)">titanium/core/live_client.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Sends a text message into the active Live session..</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>Starts background screen capture loop.</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Starts background screen capture loop..</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>Stops screen capture.</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Stops screen capture..</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>Captures a single full-resolution screenshot (PNG bytes) for Circle to Search.</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Captures a single full-resolution screenshot (PNG bytes) for Circle to Search..</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>Captures desktop screen frames at 1 FPS for Gemini Live multimodal vision.</code><br><small style="color:var(--muted)">titanium/core/screen_streamer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Captures desktop screen frames at 1 FPS for Gemini Live multimodal vision..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/core/live_client.py</code></td><td>13 nodes</td></tr>
+<tr><td><code>titanium/core/screen_streamer.py</code></td><td>11 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: method x14, explains x8, calls x7, uses x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 6. Titanium Traypy Startup ====== -->
+<h2 id="titanium-traypy-startup">6. Titanium Traypy Startup</h2>
+<p>Titanium Traypy Startup groups implementation around titanium, traypy, startup, tray, mostly in titanium/ui/tray.py. This section covers 13 nodes and 15 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Titanium Traypy Startup (13 nodes, 15 edges)
+    subgraph titanium_traypy_startup_titanium_ui_tray_py_e9e6a73f["titanium/ui/tray.py"]
+        titanium_ui_tray_titaniumtrayicon_347cb167("TitaniumTrayIcon<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_init_26cbb261("__init__()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_toggle_startup_d255d2ba("_toggle_startup()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_create_tray_pi_bf8a429b("_create_tray_pixmap()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_init_menu_15abbb8b("_init_menu()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_on_activated_2790e628("_on_activated()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_titaniumtrayicon_is_startup_ena_a7fc5761("is_startup_enabled()<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_rationale_109_0f4f7cc6("Adds or removes Titanium from Windows S...<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_rationale_100_635f876e("Checks if Titanium is set to launch on...<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_rationale_34_da0a4622("Loads the high-resolution AmazingUI Sph...<br/><small>titanium/ui/tray.py</small>")
+        titanium_ui_tray_rationale_14_4442dae5("Windows system tray icon with startup c...<br/><small>titanium/ui/tray.py</small>")
+    end
+    subgraph titanium_traypy_startup_External_generated_e9f74c19["External / generated"]
+        qicon_e68f40b4("QIcon")
+        qsystemtrayicon_67f5b4da("QSystemTrayIcon")
+    end
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_toggle_startup_d255d2ba
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_init_26cbb261
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_create_tray_pi_bf8a429b
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_init_menu_15abbb8b
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_on_activated_2790e628
+    titanium_ui_tray_titaniumtrayicon_347cb167 -->|method| titanium_ui_tray_titaniumtrayicon_is_startup_ena_a7fc5761
+    titanium_ui_tray_titaniumtrayicon_init_26cbb261 -->|calls| titanium_ui_tray_titaniumtrayicon_create_tray_pi_bf8a429b
+    titanium_ui_tray_titaniumtrayicon_init_26cbb261 -->|calls| titanium_ui_tray_titaniumtrayicon_init_menu_15abbb8b
+    titanium_ui_tray_titaniumtrayicon_init_menu_15abbb8b -->|calls| titanium_ui_tray_titaniumtrayicon_is_startup_ena_a7fc5761
+    class titanium_ui_tray_titaniumtrayicon_347cb167 klass;
+    class titanium_ui_tray_titaniumtrayicon_init_26cbb261 function;
+    class titanium_ui_tray_titaniumtrayicon_toggle_startup_d255d2ba function;
+    class titanium_ui_tray_titaniumtrayicon_create_tray_pi_bf8a429b function;
+    class titanium_ui_tray_titaniumtrayicon_init_menu_15abbb8b function;
+    class titanium_ui_tray_titaniumtrayicon_on_activated_2790e628 function;
+    class titanium_ui_tray_titaniumtrayicon_is_startup_ena_a7fc5761 function;
+    class titanium_ui_tray_rationale_109_0f4f7cc6 concept;
+    class titanium_ui_tray_rationale_100_635f876e concept;
+    class titanium_ui_tray_rationale_34_da0a4622 concept;
+    class titanium_ui_tray_rationale_14_4442dae5 concept;
+    class qicon_e68f40b4 klass;
+    class qsystemtrayicon_67f5b4da klass;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">main.py</small><br><code>__init__.py</code><br><small style="color:var(--muted)">titanium/ui/__init__.py</small><br><code>main.py</code><br><small style="color:var(--muted)">main.py</small><br>+1 more</td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>_create_tray_pixmap()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>_init_menu()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br>+3 more</td>
+  <td>TitaniumTrayIcon node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>._create_tray_pixmap()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._create_tray_pixmap() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><code>_create_tray_pixmap()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>_init_menu()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>.__init__() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>._init_menu()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><code>is_startup_enabled()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>._init_menu() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>.is_startup_enabled()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>_init_menu()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small><br><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.is_startup_enabled() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>._on_activated()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._on_activated() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>._toggle_startup()</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>TitaniumTrayIcon</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._toggle_startup() node in titanium/ui/tray.py.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>QIcon</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QIcon node in project.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>QSystemTrayIcon</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QSystemTrayIcon node in project.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>Checks if Titanium is set to launch on Windows boot.</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Checks if Titanium is set to launch on Windows boot..</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>Adds or removes Titanium from Windows Startup registry.</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Adds or removes Titanium from Windows Startup registry..</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>Windows system tray icon with startup configuration and quick toggles.</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Windows system tray icon with startup configuration and quick toggles..</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>Loads the high-resolution AmazingUI Sphere icon for the tray.</code><br><small style="color:var(--muted)">titanium/ui/tray.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Loads the high-resolution AmazingUI Sphere icon for the tray..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/ui/tray.py</code></td><td>11 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: method x6, explains x4, calls x3, inherits x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 7. Readmemd Titanium Installation ====== -->
+<h2 id="readmemd-titanium-installation">7. Readmemd Titanium Installation</h2>
+<p>Readmemd Titanium Installation groups implementation around readmemd, titanium, installation, configuration, mostly in README.md. This section covers 9 nodes and 8 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Readmemd Titanium Installation (9 nodes, 8 edges)
+    readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c("🌌 Titanium — Autonomous Agentic Virtual...<br/><small>README.md</small>")
+    readme_quick_start_bb6875fc("🚀 Quick Start<br/><small>README.md</small>")
+    readme_f78a71af("README.md")
+    readme_1_installation_921f6ca2("1. Installation<br/><small>README.md</small>")
+    readme_2_configuration_353d5709("2. Configuration<br/><small>README.md</small>")
+    readme_3_running_titanium_2fb646c0("3. Running Titanium<br/><small>README.md</small>")
+    readme_key_features_fae64a16("✨ Key Features<br/><small>README.md</small>")
+    readme_controls_shortcuts_2e97bc93("🎮 Controls &amp; Shortcuts<br/><small>README.md</small>")
+    readme_license_edbe4ad9("📄 License<br/><small>README.md</small>")
+    readme_f78a71af -->|contains| readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c
+    readme_quick_start_bb6875fc -->|contains| readme_1_installation_921f6ca2
+    readme_quick_start_bb6875fc -->|contains| readme_2_configuration_353d5709
+    readme_quick_start_bb6875fc -->|contains| readme_3_running_titanium_2fb646c0
+    readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c -->|contains| readme_license_edbe4ad9
+    readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c -->|contains| readme_quick_start_bb6875fc
+    readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c -->|contains| readme_key_features_fae64a16
+    readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c -->|contains| readme_controls_shortcuts_2e97bc93
+    class readme_titanium_autonomous_agentic_virtual_assis_aa9cee1c concept;
+    class readme_quick_start_bb6875fc concept;
+    class readme_f78a71af concept;
+    class readme_1_installation_921f6ca2 concept;
+    class readme_2_configuration_353d5709 concept;
+    class readme_3_running_titanium_2fb646c0 concept;
+    class readme_key_features_fae64a16 concept;
+    class readme_controls_shortcuts_2e97bc93 concept;
+    class readme_license_edbe4ad9 concept;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>README.md</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing README.md.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>1. Installation</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 1. Installation.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>2. Configuration</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 2. Configuration.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>3. Running Titanium</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 3. Running Titanium.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>🎮 Controls &amp; Shortcuts</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 🎮 Controls &amp; Shortcuts.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>✨ Key Features</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing ✨ Key Features.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>📄 License</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 📄 License.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>🚀 Quick Start</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 🚀 Quick Start.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>🌌 Titanium — Autonomous Agentic Virtual Assistant</code><br><small style="color:var(--muted)">README.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing 🌌 Titanium — Autonomous Agentic Virtual Assistant.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>README.md</code></td><td>9 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x8. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 8. App Titanium Tools ====== -->
+<h2 id="app-titanium-tools">8. App Titanium Tools</h2>
+<p>App Titanium Tools groups implementation around app, titanium, tools, launcherpy, mostly in titanium/tools/app_launcher.py. This section covers 9 nodes and 10 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: App Titanium Tools (9 nodes, 10 edges)
+    subgraph app_titanium_tools_titanium_tools_app_launcher_p_1b99c714["titanium/tools/app_launcher.py"]
+        titanium_tools_app_launcher_windowsapplauncher_80df8654("WindowsAppLauncher<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_windowsapplauncher_l_b3664ff3("launch_app()<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_windowsapplauncher_g_08e9528c("get_start_menu_apps()<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_windowsapplauncher_g_288d7973("get_registered_app_paths()<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_rationale_76_dd08a880("Attempts to launch an application by na...<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_rationale_32_1a2ad9ee("Discovers and launches Windows desktop...<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_rationale_50_34aac2a1("Scans Registry App Paths for registered...<br/><small>titanium/tools/app_launcher.py</small>")
+        titanium_tools_app_launcher_rationale_36_1a3a9b69("Scans Start Menu folders for .lnk short...<br/><small>titanium/tools/app_launcher.py</small>")
+    end
+    titanium_tools_app_launcher_py_any_7937ab0c("Any")
+    titanium_tools_app_launcher_windowsapplauncher_80df8654 -->|method| titanium_tools_app_launcher_windowsapplauncher_g_08e9528c
+    titanium_tools_app_launcher_windowsapplauncher_80df8654 -->|method| titanium_tools_app_launcher_windowsapplauncher_g_288d7973
+    titanium_tools_app_launcher_windowsapplauncher_80df8654 -->|method| titanium_tools_app_launcher_windowsapplauncher_l_b3664ff3
+    titanium_tools_app_launcher_windowsapplauncher_l_b3664ff3 -->|calls| titanium_tools_app_launcher_windowsapplauncher_g_288d7973
+    titanium_tools_app_launcher_windowsapplauncher_l_b3664ff3 -->|calls| titanium_tools_app_launcher_windowsapplauncher_g_08e9528c
+    class titanium_tools_app_launcher_windowsapplauncher_80df8654 klass;
+    class titanium_tools_app_launcher_windowsapplauncher_l_b3664ff3 function;
+    class titanium_tools_app_launcher_windowsapplauncher_g_08e9528c function;
+    class titanium_tools_app_launcher_windowsapplauncher_g_288d7973 function;
+    class titanium_tools_app_launcher_rationale_76_dd08a880 concept;
+    class titanium_tools_app_launcher_rationale_32_1a2ad9ee concept;
+    class titanium_tools_app_launcher_rationale_50_34aac2a1 concept;
+    class titanium_tools_app_launcher_rationale_36_1a3a9b69 concept;
+    class titanium_tools_app_launcher_py_any_7937ab0c klass;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>WindowsAppLauncher</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/tools/__init__.py</small><br><code>agent_router.py</code><br><small style="color:var(--muted)">titanium/core/agent_router.py</small></td>
+  <td><code>get_registered_app_paths()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>get_start_menu_apps()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td>WindowsAppLauncher node in titanium/tools/app_launcher.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>.get_registered_app_paths()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>WindowsAppLauncher</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.get_registered_app_paths() node in titanium/tools/app_launcher.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>.get_start_menu_apps()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>launch_app()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>WindowsAppLauncher</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.get_start_menu_apps() node in titanium/tools/app_launcher.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>.launch_app()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>WindowsAppLauncher</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><code>get_registered_app_paths()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small><br><code>get_start_menu_apps()</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td>.launch_app() node in titanium/tools/app_launcher.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>Any</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Any node in project.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>Discovers and launches Windows desktop applications and URI schemes.</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Discovers and launches Windows desktop applications and URI schemes..</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>Scans Start Menu folders for .lnk shortcuts.</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Scans Start Menu folders for .lnk shortcuts..</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>Scans Registry App Paths for registered .exe names.</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Scans Registry App Paths for registered .exe names..</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>Attempts to launch an application by name or query.</code><br><small style="color:var(--muted)">titanium/tools/app_launcher.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Attempts to launch an application by name or query..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/tools/app_launcher.py</code></td><td>8 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: explains x4, method x3, calls x2, references x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 9. Titanium Code Viewerpy ====== -->
+<h2 id="titanium-code-viewerpy">9. Titanium Code Viewerpy</h2>
+<p>Titanium Code Viewerpy groups implementation around titanium, code, viewerpy, orb, mostly in titanium/ui/code_viewer.py. This section covers 9 nodes and 9 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Titanium Code Viewerpy (9 nodes, 9 edges)
+    subgraph titanium_code_viewerpy_titanium_ui_code_viewer_p_40b38036["titanium/ui/code_viewer.py"]
+        titanium_ui_code_viewer_codeviewerwindow_82a37552("CodeViewerWindow<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_codeviewerwindow_init_265ac92f("__init__()<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_codeviewerwindow_display_ce947ac8("display_below_orb()<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_codeviewerwindow_copy_to_d16fdfe9("_copy_to_clipboard()<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_codeviewerwindow_init_ui_ece55917("_init_ui()<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_rationale_8_710710bb("Floating frosted-glass response card th...<br/><small>titanium/ui/code_viewer.py</small>")
+        titanium_ui_code_viewer_rationale_108_266936f1("Positions and displays the result card...<br/><small>titanium/ui/code_viewer.py</small>")
+    end
+    subgraph titanium_code_viewerpy_External_generated_96f03e01["External / generated"]
+        titanium_ui_code_viewer_py_qrect_fca19555("QRect")
+        titanium_ui_code_viewer_py_qwidget_5f917407("QWidget")
+    end
+    titanium_ui_code_viewer_codeviewerwindow_82a37552 -->|method| titanium_ui_code_viewer_codeviewerwindow_init_265ac92f
+    titanium_ui_code_viewer_codeviewerwindow_82a37552 -->|method| titanium_ui_code_viewer_codeviewerwindow_display_ce947ac8
+    titanium_ui_code_viewer_codeviewerwindow_82a37552 -->|method| titanium_ui_code_viewer_codeviewerwindow_copy_to_d16fdfe9
+    titanium_ui_code_viewer_codeviewerwindow_82a37552 -->|method| titanium_ui_code_viewer_codeviewerwindow_init_ui_ece55917
+    titanium_ui_code_viewer_codeviewerwindow_init_265ac92f -->|calls| titanium_ui_code_viewer_codeviewerwindow_init_ui_ece55917
+    class titanium_ui_code_viewer_codeviewerwindow_82a37552 klass;
+    class titanium_ui_code_viewer_codeviewerwindow_init_265ac92f function;
+    class titanium_ui_code_viewer_codeviewerwindow_display_ce947ac8 function;
+    class titanium_ui_code_viewer_codeviewerwindow_copy_to_d16fdfe9 entry;
+    class titanium_ui_code_viewer_codeviewerwindow_init_ui_ece55917 function;
+    class titanium_ui_code_viewer_rationale_8_710710bb concept;
+    class titanium_ui_code_viewer_rationale_108_266936f1 concept;
+    class titanium_ui_code_viewer_py_qrect_fca19555 klass;
+    class titanium_ui_code_viewer_py_qwidget_5f917407 klass;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__.py</code><br><small style="color:var(--muted)">titanium/ui/__init__.py</small></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small><br><code>_copy_to_clipboard()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small><br><code>_init_ui()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small><br>+1 more</td>
+  <td>CodeViewerWindow node in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>._copy_to_clipboard()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._copy_to_clipboard() node in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>.display_below_orb()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.display_below_orb() node in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><code>_init_ui()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td>.__init__() node in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>._init_ui()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small><br><code>CodeViewerWindow</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>._init_ui() node in titanium/ui/code_viewer.py.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>QRect</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QRect node in project.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>QWidget</code><br><small style="color:var(--muted)"></small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>QWidget node in project.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>Positions and displays the result card directly underneath the Orb.</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Positions and displays the result card directly underneath the Orb..</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>Floating frosted-glass response card that docks directly below the Siri Orb.</code><br><small style="color:var(--muted)">titanium/ui/code_viewer.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Floating frosted-glass response card that docks directly below the Siri Orb..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/ui/code_viewer.py</code></td><td>7 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: method x4, explains x2, inherits x1, references x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 10. Titanium Virtual Agentic ====== -->
+<h2 id="titanium-virtual-agentic">10. Titanium Virtual Agentic</h2>
+<p>Titanium Virtual Agentic groups implementation around titanium, virtual, agentic, assistant, mostly in titanium/__init__.py. This section covers 2 nodes and 1 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Titanium Virtual Agentic (2 nodes, 1 edges)
+    titanium_init_rationale_1_f4f15cda("Titanium Virtual Agentic Assistant for...<br/><small>titanium/__init__.py</small>")
+    titanium_init_3acc4755("__init__.py")
+    titanium_init_rationale_1_f4f15cda -->|explains| titanium_init_3acc4755
+    class titanium_init_rationale_1_f4f15cda concept;
+    class titanium_init_3acc4755 module;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>titanium/__init__.py</code><br><small style="color:var(--muted)">titanium/__init__.py</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in titanium/__init__.py.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>Titanium Virtual Agentic Assistant for Windows.</code><br><small style="color:var(--muted)">titanium/__init__.py</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Design note for Titanium Virtual Agentic Assistant for Windows..</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>titanium/__init__.py</code></td><td>2 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: explains x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<h2 id="stats">Project Statistics</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>Graph</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>Nodes</td><td>362</td></tr>
+      <tr><td>Edges</td><td>626</td></tr>
+      <tr><td>Hyperedges</td><td>0</td></tr>
+      <tr><td>Communities</td><td>18</td></tr>
+      <tr><td>Documented Sections</td><td>9</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Edge Confidence</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>EXTRACTED</td><td>577</td></tr>
+      <tr><td>INFERRED</td><td>49</td></tr>
+      <tr><td>AMBIGUOUS</td><td>0</td></tr>
+    </table>
+  </div>
+</div>
+
+<div style="text-align:center; padding:40px 0; color: var(--muted); font-size:0.9rem;">
+  <p>Titanium — Architecture Documentation</p>
+  <p>Generated: 2026-11-20 10:15 UTC · graphify callflow-html</p>
+</div>
+
+</div><!-- .container -->
+
+<script>
+(function () {
+  const mermaidConfig = {
+    startOnLoad: false,
+    theme: 'dark',
+    securityLevel: 'loose',
+    flowchart: { htmlLabels: true, useMaxWidth: true },
+    themeVariables: {
+      primaryColor: '#1e293b',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#38bdf8',
+      secondaryColor: '#0f172a',
+      tertiaryColor: '#334155',
+      lineColor: '#64748b',
+      textColor: '#e2e8f0',
+    }
+  };
+
+  mermaid.initialize(mermaidConfig);
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function enhanceMermaidDiagrams() {
+    document.querySelectorAll('.mermaid').forEach((container) => {
+      if (container.dataset.zoomReady === 'true') return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      container.dataset.zoomReady = 'true';
+      container.classList.add('is-enhanced');
+
+      const viewport = document.createElement('div');
+      viewport.className = 'mermaid-viewport';
+      svg.parentNode.insertBefore(viewport, svg);
+      viewport.appendChild(svg);
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'mermaid-toolbar';
+      toolbar.innerHTML = [
+        '<button type="button" data-action="zoom-out" title="Zoom out">-</button>',
+        '<span class="zoom-level" data-role="level">100%</span>',
+        '<button type="button" data-action="zoom-in" title="Zoom in">+</button>',
+        '<button type="button" data-action="fit" title="Fit width">Fit</button>',
+        '<button type="button" data-action="reset" title="Reset view">Reset</button>'
+      ].join('');
+      container.insertBefore(toolbar, viewport);
+
+      const state = { scale: 1, x: 0, y: 0, dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+      const level = toolbar.querySelector('[data-role="level"]');
+
+      function applyTransform() {
+        svg.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        level.textContent = `${Math.round(state.scale * 100)}%`;
+      }
+
+      function zoomBy(delta) {
+        state.scale = clamp(state.scale + delta, 0.25, 3);
+        applyTransform();
+      }
+
+      function reset() {
+        state.scale = 1;
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      function fitWidth() {
+        const rawWidth = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width
+          ? svg.viewBox.baseVal.width
+          : svg.getBoundingClientRect().width / state.scale;
+        if (!rawWidth) {
+          reset();
+          return;
+        }
+        state.scale = clamp((viewport.clientWidth - 48) / rawWidth, 0.25, 1.4);
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      toolbar.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        const action = button.dataset.action;
+        if (action === 'zoom-in') zoomBy(0.15);
+        if (action === 'zoom-out') zoomBy(-0.15);
+        if (action === 'fit') fitWidth();
+        if (action === 'reset') reset();
+      });
+
+      viewport.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        zoomBy(event.deltaY < 0 ? 0.1 : -0.1);
+      }, { passive: false });
+
+      viewport.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        state.dragging = true;
+        state.startX = event.clientX;
+        state.startY = event.clientY;
+        state.originX = state.x;
+        state.originY = state.y;
+        viewport.classList.add('is-dragging');
+        viewport.setPointerCapture(event.pointerId);
+      });
+
+      viewport.addEventListener('pointermove', (event) => {
+        if (!state.dragging) return;
+        state.x = state.originX + event.clientX - state.startX;
+        state.y = state.originY + event.clientY - state.startY;
+        applyTransform();
+      });
+
+      function endDrag(event) {
+        if (!state.dragging) return;
+        state.dragging = false;
+        viewport.classList.remove('is-dragging');
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      viewport.addEventListener('pointerup', endDrag);
+      viewport.addEventListener('pointercancel', endDrag);
+      applyTransform();
+    });
+  }
+
+  function renderMermaid() {
+    const result = mermaid.run
+      ? mermaid.run({ querySelector: '.mermaid' })
+      : Promise.resolve();
+    Promise.resolve(result)
+      .then(enhanceMermaidDiagrams)
+      .catch((error) => {
+        console.error('Mermaid render failed:', error);
+        enhanceMermaidDiagrams();
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid);
+  } else {
+    renderMermaid();
+  }
+})();
+</script>
+
+</body>
+</html>

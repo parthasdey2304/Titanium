@@ -1,0 +1,158 @@
+{
+  "main.py": {
+    "mtime": 1795169325.999885,
+    "seen": 1795169725.550488,
+    "ast_hash": "3aaa72a94987b88bc3cf23d6238040d2",
+    "semantic_hash": ""
+  },
+  "titanium/__init__.py": {
+    "mtime": 1795114581.3500714,
+    "seen": 1795169725.550488,
+    "ast_hash": "536781d5e70ab19cee266a189d8357b6",
+    "semantic_hash": ""
+  },
+  "titanium/config.py": {
+    "mtime": 1795154928.7600832,
+    "seen": 1795169725.550488,
+    "ast_hash": "17b33b2e555f87973688f3d40cbd0865",
+    "semantic_hash": ""
+  },
+  "titanium/core/agent_router.py": {
+    "mtime": 1795169037.1854815,
+    "seen": 1795169725.550488,
+    "ast_hash": "3d9f705397f1c0ef4c26ec2fc635ad1c",
+    "semantic_hash": ""
+  },
+  "titanium/core/elevenlabs_tts.py": {
+    "mtime": 1795154973.0641007,
+    "seen": 1795169725.550488,
+    "ast_hash": "5105f45ad0c6d064994008419c1b457b",
+    "semantic_hash": ""
+  },
+  "titanium/core/live_client.py": {
+    "mtime": 1795158988.4220269,
+    "seen": 1795169725.550488,
+    "ast_hash": "1bd35d0dce6110609f26e88ec527dda4",
+    "semantic_hash": ""
+  },
+  "titanium/core/screen_streamer.py": {
+    "mtime": 1795114713.665783,
+    "seen": 1795169725.550488,
+    "ast_hash": "9ef9af0598858abb743b487f1335381b",
+    "semantic_hash": ""
+  },
+  "titanium/core/wake_listener.py": {
+    "mtime": 1795159402.6532001,
+    "seen": 1795169725.550488,
+    "ast_hash": "40e18fc6faa2e71ec40064e8c44c50c9",
+    "semantic_hash": ""
+  },
+  "titanium/memory/__init__.py": {
+    "mtime": 1795114617.819281,
+    "seen": 1795169725.550488,
+    "ast_hash": "07d2667de25dbc75813f579bc8c60e84",
+    "semantic_hash": ""
+  },
+  "titanium/memory/sqlite_memory.py": {
+    "mtime": 1795114593.419703,
+    "seen": 1795169725.550488,
+    "ast_hash": "46c6655879520d2927bf40c1e74c223c",
+    "semantic_hash": ""
+  },
+  "titanium/tools/__init__.py": {
+    "mtime": 1795168583.302763,
+    "seen": 1795169725.550488,
+    "ast_hash": "83ddf0dd8f4564bfe5e73ef8e5f5c4cb",
+    "semantic_hash": ""
+  },
+  "titanium/tools/app_launcher.py": {
+    "mtime": 1795114648.526871,
+    "seen": 1795169725.550488,
+    "ast_hash": "08f578c748a7c86f5fababcdec540be6",
+    "semantic_hash": ""
+  },
+  "titanium/tools/installer.py": {
+    "mtime": 1795118609.8774395,
+    "seen": 1795169725.550488,
+    "ast_hash": "67f25e7a9c43c19ce36291b28bd73df4",
+    "semantic_hash": ""
+  },
+  "titanium/tools/music_player.py": {
+    "mtime": 1795168567.7770483,
+    "seen": 1795169725.550488,
+    "ast_hash": "1621b5c80bb1cf88025180c8cc3666c7",
+    "semantic_hash": ""
+  },
+  "titanium/tools/system_navigator.py": {
+    "mtime": 1795155003.3795562,
+    "seen": 1795169725.550488,
+    "ast_hash": "32ed63de0ada5b23856b0c872acbee7d",
+    "semantic_hash": ""
+  },
+  "titanium/tools/system_tools.py": {
+    "mtime": 1795114654.6779108,
+    "seen": 1795169725.550488,
+    "ast_hash": "7b09f21c4318f17f4f5a54fae706c685",
+    "semantic_hash": ""
+  },
+  "titanium/ui/__init__.py": {
+    "mtime": 1795114797.2166505,
+    "seen": 1795169725.550488,
+    "ast_hash": "d9ddb4e89374e00d06fe9d3da5376ec6",
+    "semantic_hash": ""
+  },
+  "titanium/ui/circle_search.py": {
+    "mtime": 1795114756.4694128,
+    "seen": 1795169725.550488,
+    "ast_hash": "74375c0922f6f29b6b6e04fa67c02554",
+    "semantic_hash": ""
+  },
+  "titanium/ui/code_viewer.py": {
+    "mtime": 1795117753.3708997,
+    "seen": 1795169725.550488,
+    "ast_hash": "47cb24b4f7562f31755c6bbc167e6001",
+    "semantic_hash": ""
+  },
+  "titanium/ui/siri_orb.py": {
+    "mtime": 1795156479.9463522,
+    "seen": 1795169725.550488,
+    "ast_hash": "352f22219f704b821ee409a1a436cfca",
+    "semantic_hash": ""
+  },
+  "titanium/ui/subtitle_pill.py": {
+    "mtime": 1795156581.5606766,
+    "seen": 1795169725.550488,
+    "ast_hash": "a08a36d72cfe535b16a590945456d6d6",
+    "semantic_hash": ""
+  },
+  "titanium/ui/tray.py": {
+    "mtime": 1795118408.0902503,
+    "seen": 1795169725.550488,
+    "ast_hash": "04437fd940eee9ce1c50875304cd8281",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1795117106.8753514,
+    "seen": 1795169725.550488,
+    "ast_hash": "bb6db27e8083c9a1cae3224208acf121",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1795114566.6809762,
+    "seen": 1795169725.550488,
+    "ast_hash": "4c0043a0e1f97ed8bef672a632700cdf",
+    "semantic_hash": ""
+  },
+  "titanium/assets/amazingui_sphere.png": {
+    "mtime": 1795119179.7757392,
+    "seen": 1795169725.550488,
+    "ast_hash": "f48d36a9fa4e8b7872439051549795f6",
+    "semantic_hash": ""
+  },
+  "titanium/assets/titanium_sphere_video.mp4": {
+    "mtime": 1795118951.047053,
+    "seen": 1795169725.550488,
+    "ast_hash": "795ed7fe066027c7a365404f8f929e61",
+    "semantic_hash": ""
+  }
+}
