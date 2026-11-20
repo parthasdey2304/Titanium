@@ -320,17 +320,12 @@ def enforce_single_instance():
                 continue
             pname = (p.info['name'] or '').lower()
             if pname in ('python.exe', 'pythonw.exe'):
-                cmdline = ' '.join(p.info['cmdline'] or [])
-                if 'main.py' in cmdline:
+                parts = p.info['cmdline'] or []
+                if len(parts) >= 2 and any(os.path.basename(arg) == 'main.py' for arg in parts[1:]):
                     try:
                         p.kill()
-                        p.wait(timeout=0.8)
                     except Exception:
-                        try:
-                            import subprocess
-                            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
-                        except Exception:
-                            pass
+                        pass
         except Exception:
             pass
 

@@ -175,20 +175,33 @@ class WakeWordListener:
                 if not is_click:
                     self.energy_threshold = max(240.0, 0.98 * self.energy_threshold + 0.02 * (rms * 1.5))
 
-        try:
-            with sd.InputStream(
-                samplerate=self.sample_rate,
-                channels=1,
-                dtype="int16",
-                blocksize=block_size,
-                callback=audio_callback
-            ) as stream:
-                self._stream = stream
-                while self._running:
-                    time.sleep(0.05)
-        except Exception as e:
-            print(f"[WakeWordListener] Microphone error: {e}", flush=True)
-            self._running = False
+        while self._running:
+            try:
+                # Resolve active input device safely
+                device_idx = None
+                try:
+                    def_in = sd.default.device[0]
+                    if def_in is not None and def_in >= 0:
+                        device_idx = def_in
+                except Exception:
+                    pass
+
+                with sd.InputStream(
+                    device=device_idx,
+                    samplerate=self.sample_rate,
+                    channels=1,
+                    dtype="int16",
+                    blocksize=block_size,
+                    callback=audio_callback
+                ) as stream:
+                    self._stream = stream
+                    while self._running:
+                        time.sleep(0.05)
+            except Exception as e:
+                if not self._running:
+                    break
+                print(f"[WakeWordListener] Microphone note, reconnecting: {e}", flush=True)
+                time.sleep(1.2)
 
     def _process_utterance(self, audio_bytes: bytes):
         """Transcribes filtered audio with multi-language fallback and handles continuous turns."""
