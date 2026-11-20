@@ -324,8 +324,13 @@ def enforce_single_instance():
                 if 'main.py' in cmdline:
                     try:
                         p.kill()
+                        p.wait(timeout=0.8)
                     except Exception:
-                        pass
+                        try:
+                            import subprocess
+                            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+                        except Exception:
+                            pass
         except Exception:
             pass
 
