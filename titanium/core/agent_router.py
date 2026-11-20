@@ -15,6 +15,7 @@ from titanium.memory.sqlite_memory import MemoryManager
 from titanium.tools.app_launcher import WindowsAppLauncher
 from titanium.tools.system_navigator import SystemNavigator
 from titanium.tools.system_tools import lock_workstation, set_system_volume, get_system_info
+from titanium.tools.music_player import TitaniumMusicPlayer
 
 # Common desktop apps for zero-latency local dispatch
 FAST_APP_NAMES = [
@@ -28,6 +29,7 @@ class AgentRouter:
 
     def __init__(self, memory: Optional[MemoryManager] = None):
         self.memory = memory or MemoryManager()
+        self.music_player = TitaniumMusicPlayer.get_instance()
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.chat = None
         self._init_chat()
@@ -56,6 +58,74 @@ class AgentRouter:
         """Processes query with instant local app dispatch + Gemini Live conversational response."""
         self.memory.add_message("user", user_text)
         lower = user_text.lower().strip()
+
+        # 0. Headless In-Process Music Controls (Zero External Apps / Windows)
+        is_music_stop = any(w in lower for w in [
+            "pause music", "stop music", "pause song", "stop song",
+            "music pause", "music stop", "gaana roko", "music roko",
+            "gaana pause", "music pause karo", "gaana band karo", "music band karo",
+            "song band karo", "pause playback", "stop playback"
+        ])
+        if is_music_stop:
+            if "pause" in lower:
+                self.music_player.pause()
+                reply = "Maine music pause kar diya hai."
+            else:
+                self.music_player.stop()
+                reply = "Maine music band kar diya hai."
+            self.memory.add_message("assistant", reply, model="music-player")
+            return reply
+
+        is_music_resume = any(w in lower for w in [
+            "resume music", "continue music", "unpause music", "music resume",
+            "music continue", "gaana wapas chalao", "gaana chalu karo", "music play karo"
+        ])
+        if is_music_resume:
+            self.music_player.resume()
+            reply = "Maine music resume kar diya hai."
+            self.memory.add_message("assistant", reply, model="music-player")
+            return reply
+
+        if any(w in lower for w in ["music volume", "song volume", "playback volume"]):
+            numbers = re.findall(r"\d+", lower)
+            if numbers:
+                target_vol = int(numbers[0])
+                self.music_player.set_volume(target_vol)
+                reply = f"Maine music volume {target_vol}% set kar diya hai."
+                self.memory.add_message("assistant", reply, model="music-player")
+                return reply
+
+        # Check Play Music Intent
+        is_music_play = (
+            lower.startswith("play ")
+            or any(w in lower for w in [
+                "play music", "play a song", "play some music", "play song",
+                "gaana bajao", "gaane bajao", "music bajao", "gaana chalao", "gaane chalao", "music chalao",
+                "song play karo", "music play karo", "bajao", "gaana sunao"
+            ])
+        ) and not any(w in lower for w in ["close", "band karo", "shut", "exit"]) and not any(neg in lower for neg in ["don't", "dont", "mat chalao", "nahi"])
+
+        if is_music_play:
+            song_query = lower
+            for phrase in [
+                "play music", "play a song", "play some music", "play song", "play track", "play",
+                "gaana bajao", "gaane bajao", "music bajao", "gaana chalao", "gaane chalao", "music chalao",
+                "song play karo", "music play karo", "gaana sunao", "chalao", "bajao",
+                "on spotify", "on youtube", "karo", "please", "for me", "in background"
+            ]:
+                song_query = re.sub(rf"\b{re.escape(phrase)}\b", "", song_query)
+
+            song_query = re.sub(r"\s+", " ", song_query).strip(" ,.-")
+            if not song_query or song_query.lower() in ["music", "song", "gaana", "songs"]:
+                song_query = "lofi hip hop radio beats"
+                display_name = "Lofi Chill Beats"
+            else:
+                display_name = song_query.title()
+
+            self.music_player.play(song_query)
+            reply = f"Haanji! Maine '{display_name}' play karna start kar diya hai."
+            self.memory.add_message("assistant", reply, model="music-player")
+            return reply
 
         # 1. Close Intent Detection (Apps, Tabs, Windows)
         is_close_intent = any(w in lower for w in [
