@@ -20,6 +20,7 @@ class TitaniumApp(QObject):
     # Internal signals for cross-thread Qt UI updates
     update_orb_state = Signal(str)
     show_response_signal = Signal(str, str)
+    show_user_prompt_signal = Signal(str)
     start_circle_search_signal = Signal()
 
     def __init__(self):
@@ -30,6 +31,7 @@ class TitaniumApp(QObject):
         self.tts = ElevenLabsTTS()
         self.router = AgentRouter(memory=self.memory)
         self.live_client = GeminiLiveClient(tts=self.tts)
+        self.initial_greeting_done = False
 
         # 2. Initialize UI Components
         self.orb = SiriOrbWidget()
@@ -50,6 +52,7 @@ class TitaniumApp(QObject):
 
         self.update_orb_state.connect(self.orb.set_state)
         self.show_response_signal.connect(self._on_show_response)
+        self.show_user_prompt_signal.connect(self._on_show_user_prompt)
         self.start_circle_search_signal.connect(self.overlay.trigger)
 
         # 4. Bind Live Client State Callbacks
@@ -72,9 +75,13 @@ class TitaniumApp(QObject):
 
         print("[Titanium] Initialized and running in system tray with Wake Word.")
 
-    def _on_show_response(self, text: str, title: str = ""):
-        """Displays ultra-compact floating subtitle pill docked directly below the Siri Orb."""
-        self.subtitle_pill.display_below_orb(text, self.orb.geometry())
+    def _on_show_response(self, text: str, user_text: str = ""):
+        """Displays conversational response docked directly below the Siri Orb."""
+        self.subtitle_pill.display_below_orb(text, self.orb.geometry(), user_text=user_text)
+
+    def _on_show_user_prompt(self, user_text: str):
+        """Displays user prompt immediately in black Gemini dark-mode bubble shifted right."""
+        self.subtitle_pill.show_user_prompt(user_text, self.orb.geometry())
 
     def toggle_orb_visibility(self):
         if self.orb.isVisible():
@@ -137,11 +144,20 @@ class TitaniumApp(QObject):
             self.speak_with_pause("Shant ho gaya hoon. Jab bhi zaroorat ho, bas 'Hey Titanium' boliye.", next_state="idle")
             return
 
+        # Spoken ONLY ONCE when the app starts / initial wake trigger
+        if not self.initial_greeting_done:
+            self.initial_greeting_done = True
+            self.wake_listener.set_active_session(True)
+            greeting = "Haanji Parth, bataiye kya baat hai? Main hoon aapki help karne ke liye."
+            self.show_response_signal.emit(greeting, "")
+            self.speak_with_pause(greeting, next_state="listening")
+            return
+
         if cmd and len(cmd.strip()) > 1:
             self.wake_listener.set_active_session(True)
             self.handle_user_prompt(cmd.strip())
         else:
-            # Wake word triggered without trailing query: listen attentively without unprompted monologue
+            # Wake word triggered without trailing query: listen attentively without repeating canned lines
             self.wake_listener.set_active_session(True)
             self.update_orb_state.emit("listening")
             self.show_response_signal.emit("Listening...", "")
@@ -156,7 +172,13 @@ class TitaniumApp(QObject):
             self.wake_listener.set_active_session(True)
             self.tts.play_wake_chime()
             self.update_orb_state.emit("listening")
-            self.show_response_signal.emit("Listening...", "")
+            if not self.initial_greeting_done:
+                self.initial_greeting_done = True
+                greeting = "Haanji Parth, bataiye kya baat hai? Main hoon aapki help karne ke liye."
+                self.show_response_signal.emit(greeting, "")
+                self.speak_with_pause(greeting, next_state="listening")
+            else:
+                self.show_response_signal.emit("Listening...", "")
 
     def on_circle_crop_captured(self, png_bytes: bytes):
         """Handles captured crop from Circle to Search."""
@@ -176,11 +198,13 @@ class TitaniumApp(QObject):
     def handle_user_prompt(self, prompt: str):
         """Processes a prompt from user dialog or voice."""
         self.orb.set_state("thinking")
+        # Instantly show the user's spoken words in black Gemini dark-mode bubble shifted right!
+        self.show_user_prompt_signal.emit(prompt)
 
         def worker():
             answer = self.router.handle_user_query(prompt)
-            # Always show crisp subtitle pill right under orb for conversation
-            self.show_response_signal.emit(answer, "")
+            # Display conversation turn (user prompt + AI response)
+            self.show_response_signal.emit(answer, prompt)
             self.speak_with_pause(answer)
 
         threading.Thread(target=worker, daemon=True).start()

@@ -1,12 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, QRect, QTimer, QPoint
-from PySide6.QtGui import QFont, QColor, QCursor
+from PySide6.QtCore import Qt, QRect, QTimer
+from PySide6.QtGui import QColor, QCursor
 
 class CompactSubtitlePill(QWidget):
-    """Ultra-compact, sleek floating pill that displays crisp AI conversational responses
-    docked cleanly right below the AmazingUI Sphere Orb, without giant window clutter.
+    """Sleek floating conversational pill docked directly below the Siri Orb.
+    Renders user prompt in a Gemini-style dark bubble (black background, shifted right)
+    and AI response with sparkle icon, floating cleanly on screen without giant window clutter.
     """
 
     def __init__(self, parent=None):
@@ -19,19 +20,68 @@ class CompactSubtitlePill(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         
-        self.max_pill_width = 320
+        self.max_pill_width = 330
+        self._last_user_text = ""
+        self._last_ai_text = ""
         self._init_ui()
 
-        # Auto-dismiss timer (default 6.5s)
+        # Auto-dismiss timer
         self.dismiss_timer = QTimer(self)
         self.dismiss_timer.setSingleShot(True)
         self.dismiss_timer.timeout.connect(self.hide)
 
     def _init_ui(self):
-        self.setStyleSheet("""
-            QWidget#PillContainer {
-                background-color: rgba(14, 16, 26, 235);
-                border: 1px solid rgba(139, 92, 246, 110);
+        # Drop shadow for clean separation from desktop windows
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(22)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 4)
+
+        self.outer_layout = QVBoxLayout(self)
+        self.outer_layout.setContentsMargins(6, 6, 6, 6)
+        self.outer_layout.setSpacing(6)
+
+        # 1. USER MESSAGE CONTAINER (Gemini Dark Mode style - black background, shifted to the right)
+        self.user_wrapper = QWidget()
+        self.user_wrapper_layout = QHBoxLayout(self.user_wrapper)
+        self.user_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        self.user_wrapper_layout.addStretch(1) # Pushes user bubble to the right
+
+        self.user_bubble = QWidget()
+        self.user_bubble.setStyleSheet("""
+            QWidget {
+                background-color: #131314;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 16px 16px 4px 16px;
+            }
+            QLabel {
+                color: #E2E8F0;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+                line-height: 1.35;
+                padding: 6px 12px;
+            }
+        """)
+        user_bubble_layout = QHBoxLayout(self.user_bubble)
+        user_bubble_layout.setContentsMargins(0, 0, 0, 0)
+        self.user_label = QLabel("")
+        self.user_label.setWordWrap(True)
+        self.user_label.setMaximumWidth(self.max_pill_width - 40)
+        user_bubble_layout.addWidget(self.user_label)
+        self.user_wrapper_layout.addWidget(self.user_bubble)
+        self.user_wrapper.hide() # Hidden until user speaks
+
+        self.outer_layout.addWidget(self.user_wrapper)
+
+        # 2. AI RESPONSE CONTAINER (Sleek dark card with purple border and sparkle)
+        self.ai_bubble = QWidget()
+        self.ai_bubble.setObjectName("AIBubbleContainer")
+        self.ai_bubble.setGraphicsEffect(shadow)
+        self.ai_bubble.setStyleSheet("""
+            QWidget#AIBubbleContainer {
+                background-color: rgba(14, 16, 26, 240);
+                border: 1px solid rgba(139, 92, 246, 115);
                 border-radius: 16px;
             }
             QLabel#SparkleIcon {
@@ -48,79 +98,89 @@ class CompactSubtitlePill(QWidget):
             }
         """)
 
-        # Drop shadow for clean separation from any background window
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 160))
-        shadow.setOffset(0, 4)
+        ai_layout = QHBoxLayout(self.ai_bubble)
+        ai_layout.setContentsMargins(12, 9, 14, 9)
+        ai_layout.setSpacing(9)
 
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(8, 8, 8, 8)
-
-        self.container = QWidget()
-        self.container.setObjectName("PillContainer")
-        self.container.setGraphicsEffect(shadow)
-
-        pill_layout = QHBoxLayout(self.container)
-        pill_layout.setContentsMargins(14, 10, 14, 10)
-        pill_layout.setSpacing(10)
-
-        # AI Sparkle Icon
         self.sparkle = QLabel("✨")
         self.sparkle.setObjectName("SparkleIcon")
         self.sparkle.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        pill_layout.addWidget(self.sparkle)
+        ai_layout.addWidget(self.sparkle)
 
-        # Crisp Response Text Label
-        self.label = QLabel("")
-        self.label.setObjectName("SubtitleText")
-        self.label.setWordWrap(True)
-        self.label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        pill_layout.addWidget(self.label, 1)
+        self.ai_label = QLabel("")
+        self.ai_label.setObjectName("SubtitleText")
+        self.ai_label.setWordWrap(True)
+        self.ai_label.setMaximumWidth(self.max_pill_width)
+        ai_layout.addWidget(self.ai_label, 1)
 
-        outer_layout.addWidget(self.container)
+        self.outer_layout.addWidget(self.ai_bubble)
 
-    def display_below_orb(self, text: str, orb_rect: QRect, duration_ms: int = 7000):
-        """Formats and docks the pill directly under the orb."""
-        if not text:
+    def show_user_prompt(self, user_text: str, orb_rect: QRect):
+        """Immediately displays user's spoken words in black Gemini dark-mode bubble shifted right."""
+        if not user_text or not user_text.strip():
             return
 
-        # Clean text
-        clean_text = text.strip()
-        # Remove markdown headers or bold symbols if any for super clean reading
-        clean_text = clean_text.replace("### ", "").replace("## ", "").replace("# ", "")
+        self._last_user_text = user_text.strip()
+        self.user_label.setText(self._last_user_text)
+        self.user_wrapper.show()
 
-        self.label.setText(clean_text)
-        self.label.setMaximumWidth(self.max_pill_width)
-        self.container.setMaximumWidth(self.max_pill_width + 36)
-        
+        # Show thinking state on AI bubble while processing
+        self.sparkle.setText("✨")
+        self.ai_label.setText("Thinking...")
+        self.ai_bubble.show()
+
+        self._reposition_below_orb(orb_rect)
+        self.dismiss_timer.stop()
+        self.dismiss_timer.start(10000)
+
+    def display_below_orb(self, ai_text: str, orb_rect: QRect, user_text: str = ""):
+        """Formats and docks the conversation turn directly under the orb."""
+        if not ai_text and not user_text:
+            return
+
+        if user_text and user_text.strip():
+            self._last_user_text = user_text.strip()
+            self.user_label.setText(self._last_user_text)
+            self.user_wrapper.show()
+        elif not self._last_user_text:
+            self.user_wrapper.hide()
+
+        clean_ai = ai_text.strip().replace("### ", "").replace("## ", "").replace("# ", "")
+        self._last_ai_text = clean_ai
+        self.ai_label.setText(clean_ai)
+        self.ai_bubble.show()
+
+        self._reposition_below_orb(orb_rect)
+
+        # Reading duration: min 5s, + 65ms per word
+        word_count = len(clean_ai.split())
+        read_time = max(5500, min(14000, 3600 + word_count * 65))
+        self.dismiss_timer.stop()
+        self.dismiss_timer.start(read_time)
+
+    def _reposition_below_orb(self, orb_rect: QRect):
+        """Calculates geometry docking below the orb, shifted slightly to the right."""
         self.adjustSize()
-
-        # Position right below the orb, right-aligned to screen margin
-        margin_x = 16
         screen = QApplication.primaryScreen().availableGeometry()
-        x = min(screen.right() - self.width() - margin_x, orb_rect.right() - self.width() + 20)
-        y = orb_rect.bottom() + 4
 
-        # Bounds check
+        # Shift slightly right towards the screen edge
+        shift_right_offset = 28
+        x = min(screen.right() - self.width() - 14, orb_rect.right() - self.width() + shift_right_offset)
+        y = orb_rect.bottom() + 6
+
+        # Screen boundary constraints
         if y + self.height() > screen.bottom() - 20:
             y = screen.bottom() - self.height() - 20
-        if x < screen.left() + 20:
-            x = screen.left() + 20
+        if x < screen.left() + 16:
+            x = screen.left() + 16
 
         self.move(x, y)
         self.show()
         self.raise_()
 
-        # Reset dismiss timer
-        self.dismiss_timer.stop()
-        # Calculate reading duration: min 5s, + 60ms per word
-        word_count = len(clean_text.split())
-        read_time = max(5000, min(14000, 3500 + word_count * 65))
-        self.dismiss_timer.start(read_time)
-
     def mousePressEvent(self, event):
-        """Clicking the pill copies text to clipboard and dismisses it cleanly."""
+        """Clicking copies conversation turn to clipboard and hides the pill."""
         clipboard = QApplication.clipboard()
-        clipboard.setText(self.label.text())
+        copy_text = f"User: {self._last_user_text}\nTitanium: {self._last_ai_text}" if self._last_user_text else self._last_ai_text
+        clipboard.setText(copy_text)
         self.hide()
