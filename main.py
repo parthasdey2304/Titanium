@@ -1,4 +1,7 @@
 import sys
+import os
+import time
+import socket
 import threading
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QObject, Signal, Slot
@@ -403,9 +406,9 @@ def cleanup_stale_processes():
 
 def acquire_single_instance_lock():
     """Attempts to bind to localhost port to guarantee single instance without race conditions."""
-    import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', SINGLE_INSTANCE_PORT))
         s.listen(5)
         return s
@@ -414,7 +417,6 @@ def acquire_single_instance_lock():
         return None
 
 def main():
-    import time
     from pathlib import Path
 
     try:
@@ -423,9 +425,14 @@ def main():
         if not lock_socket:
             if notify_existing_instance():
                 print("[Titanium] Running instance notified and revealed. Exiting duplicate process.")
-            sys.exit(0)
+                sys.exit(0)
+            else:
+                # Port was held by orphaned socket or in TIME_WAIT. Reclaim lock.
+                cleanup_stale_processes()
+                time.sleep(0.5)
+                lock_socket = acquire_single_instance_lock()
 
-        # We own the single-instance lock! Clean up any orphaned zombie processes
+        # Clean up any orphaned zombie processes
         cleanup_stale_processes()
 
         # Set Windows AppUserModelID so Windows taskbar & Start Menu associate the high-res icon
