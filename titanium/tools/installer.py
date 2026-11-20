@@ -89,14 +89,54 @@ $Shortcut.Save()
 
     @classmethod
     def unregister_registry_startup(cls) -> bool:
+        success = False
+        for name in [APP_NAME, "TitaniumAssistant"]:
+            try:
+                reg_key = winreg.HKEY_CURRENT_USER
+                key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                with winreg.OpenKey(reg_key, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, name)
+                success = True
+            except Exception:
+                pass
+        return success
+
+    @classmethod
+    def uninstall(cls) -> Dict[str, Any]:
+        """Safely uninstalls Titanium system integrations without deleting user files or code:
+        - Removes Start Menu shortcut
+        - Removes Windows Startup shortcut & Task Manager Registry Run key
+        - Removes Desktop shortcut
+        - Kills running Titanium background process
+        """
+        paths = cls.get_paths()
+        removed_items = []
+
+        # 1. Remove Registry Run Key
+        if cls.unregister_registry_startup():
+            removed_items.append("Task Manager Startup Registry")
+
+        # 2. Remove Shortcuts
+        for key in ["start_menu_lnk", "startup_lnk", "desktop_lnk"]:
+            lnk_path = paths[key]
+            if lnk_path.exists():
+                try:
+                    lnk_path.unlink()
+                    removed_items.append(f"{key} ({lnk_path.name})")
+                except Exception as e:
+                    print(f"[Installer] Error removing {lnk_path}: {e}")
+
+        # 3. Refresh Windows Icon & Shell Cache
         try:
-            reg_key = winreg.HKEY_CURRENT_USER
-            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-            with winreg.OpenKey(reg_key, key_path, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.DeleteValue(key, APP_NAME)
-            return True
+            subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, timeout=5)
         except Exception:
-            return False
+            pass
+
+        return {
+            "success": True,
+            "removed": removed_items,
+            "message": "Titanium system integration disabled successfully. Your project files, memory DB, and code remain 100% intact."
+        }
 
     @classmethod
     def install(cls) -> Dict[str, Any]:

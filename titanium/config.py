@@ -1,11 +1,22 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from project root
-ROOT_DIR = Path(__file__).resolve().parent.parent
+# Load .env dynamically:
+# If running as a frozen PyInstaller binary, look next to the executable;
+# otherwise look in the project root directory.
+if getattr(sys, 'frozen', False):
+    ROOT_DIR = Path(sys.executable).resolve().parent
+else:
+    ROOT_DIR = Path(__file__).resolve().parent.parent
+
 ENV_PATH = ROOT_DIR / ".env"
-load_dotenv(dotenv_path=ENV_PATH)
+if ENV_PATH.exists():
+    load_dotenv(dotenv_path=ENV_PATH)
+else:
+    # Also check current working directory as fallback
+    load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")

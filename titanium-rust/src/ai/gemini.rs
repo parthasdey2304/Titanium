@@ -120,4 +120,17 @@ impl GeminiClient {
 
         Ok("Ji Parth, main sun raha hoon. Boliye!".to_string())
     }
+
+    /// Live on-screen key validator: pings Google Gemini API to verify validity
+    pub async fn validate_key(key: &str) -> anyhow::Result<bool> {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(6))
+            .build()?;
+        let url = format!(
+            "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+            key.trim()
+        );
+        let res = client.get(&url).send().await?;
+        Ok(res.status().is_success())
+    }
 }

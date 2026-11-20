@@ -18,12 +18,14 @@ class TitaniumTrayIcon(QSystemTrayIcon):
         on_toggle_orb: Callable[[], None],
         on_circle_search: Callable[[], None],
         on_install: Optional[Callable[[], None]] = None,
+        on_uninstall: Optional[Callable[[], None]] = None,
         parent=None
     ):
         super().__init__(parent)
         self.on_toggle_orb = on_toggle_orb
         self.on_circle_search = on_circle_search
         self.on_install = on_install
+        self.on_uninstall = on_uninstall
 
         self.setIcon(self._create_tray_pixmap())
         self.setToolTip("Titanium AI Assistant (Windows)")
@@ -79,6 +81,10 @@ class TitaniumTrayIcon(QSystemTrayIcon):
         if self.on_install:
             install_act = menu.addAction("📥 Install to Start Menu & Startup")
             install_act.triggered.connect(self.on_install)
+
+        if self.on_uninstall:
+            uninstall_act = menu.addAction("🗑️ Disable Windows Integration / Shortcuts")
+            uninstall_act.triggered.connect(self.on_uninstall)
 
         self.startup_act = menu.addAction("🚀 Launch on Windows Startup")
         self.startup_act.setCheckable(True)

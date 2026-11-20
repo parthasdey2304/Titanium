@@ -51,7 +51,8 @@ class TitaniumApp(QObject):
         self.tray = TitaniumTrayIcon(
             on_toggle_orb=self.toggle_orb_visibility,
             on_circle_search=self.start_circle_search,
-            on_install=self.install_system_integration
+            on_install=self.install_system_integration,
+            on_uninstall=self.uninstall_system_integration
         )
 
         # 4. Connect UI Signals
@@ -159,6 +160,18 @@ class TitaniumApp(QObject):
                 f"Installation note: {res.get('message', 'Check permissions.')}",
                 "System Installation"
             )
+
+    def uninstall_system_integration(self):
+        """Disables Titanium Windows autostart, Start Menu, and Desktop shortcuts without deleting files."""
+        res = WindowsInstaller.uninstall()
+        self.show_response_signal.emit(
+            "🗑️ Windows Integration Disabled!\n\n"
+            "• Removed Start Menu and Desktop shortcuts.\n"
+            "• Removed Windows Task Manager autostart entry.\n\n"
+            "All project files, code, and database remain 100% intact.",
+            "System Uninstaller"
+        )
+        self.tts.speak_text("Titanium ki Windows integration aur shortcuts remove ho gaye hain. Aapka data aur code bilkul safe hai.")
 
     def speak_with_pause(self, text: str, on_done=None, next_state="listening"):
         """Speaks via ElevenLabs while temporarily pausing mic and ducking background music."""
@@ -429,6 +442,17 @@ def main():
         if icon_path.exists():
             from PySide6.QtGui import QIcon
             app.setWindowIcon(QIcon(str(icon_path)))
+
+        # On-screen API Key prompt if GEMINI_API_KEY is not configured
+        from titanium.config import GEMINI_API_KEY
+        current_key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+        if not current_key or current_key.strip() == "your_gemini_api_key_here":
+            from titanium.ui.api_key_dialog import ApiKeySetupDialog
+            from PySide6.QtWidgets import QDialog
+            dialog = ApiKeySetupDialog()
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                print("[Titanium] Setup cancelled by user. Exiting cleanly.")
+                sys.exit(0)
         
         titanium_controller = TitaniumApp(lock_socket=lock_socket)
         

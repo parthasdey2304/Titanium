@@ -38,13 +38,21 @@ async fn main() -> anyhow::Result<()> {
 
     println!("[Titanium-RS] Single-instance lock acquired on port {}.", SINGLE_INSTANCE_PORT);
 
-    // 2. Initialize Hardware-Accelerated Win32 Transparent Siri Orb
+    // 2. Ensure Gemini API Key exists via on-screen prompt with live verification
+    let gemini_key = match ui::key_prompt::NativeKeyPrompt::ensure_api_key().await {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("[Titanium-RS] Setup cancelled or key invalid: {}", e);
+            return Ok(());
+        }
+    };
+
+    // 3. Initialize Hardware-Accelerated Win32 Transparent Siri Orb
     let orb = NativeOrb::create_and_show()?;
     println!("[Titanium-RS] 60 FPS Win32 Layered Orb docked at Top-Right.");
 
-    // 3. Initialize AI & Media Services
-    let gemini_key = std::env::var("GEMINI_API_KEY").unwrap_or_else(|_| "test_key".to_string());
-    let eleven_key = std::env::var("ELEVENLABS_API_KEY").unwrap_or_else(|_| "test_key".to_string());
+    // 4. Initialize AI & Media Services
+    let eleven_key = std::env::var("ELEVENLABS_API_KEY").unwrap_or_else(|_| "".to_string());
 
     let gemini = Arc::new(GeminiClient::new(gemini_key));
     let tts = Arc::new(ElevenLabsTTS::new(eleven_key, None));
