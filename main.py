@@ -141,21 +141,22 @@ class TitaniumApp(QObject):
             self.wake_listener.set_active_session(True)
             self.handle_user_prompt(cmd.strip())
         else:
+            # Wake word triggered without trailing query: listen attentively without unprompted monologue
             self.wake_listener.set_active_session(True)
             self.update_orb_state.emit("listening")
-            self.speak_with_pause("Haanji! Bataiye, main sun raha hoon.", next_state="listening")
+            self.show_response_signal.emit("Listening...", "")
 
     def toggle_live_session(self):
         """Clicking the Orb toggles continuous Gemini Live conversation."""
         if self.wake_listener.in_active_session:
             self.wake_listener.set_active_session(False)
             self.update_orb_state.emit("idle")
-            self.speak_with_pause("Listening paused.", next_state="idle")
+            self.show_response_signal.emit("Paused", "")
         else:
             self.wake_listener.set_active_session(True)
             self.tts.play_wake_chime()
             self.update_orb_state.emit("listening")
-            self.speak_with_pause("Haanji! I am listening.", next_state="listening")
+            self.show_response_signal.emit("Listening...", "")
 
     def on_circle_crop_captured(self, png_bytes: bytes):
         """Handles captured crop from Circle to Search."""

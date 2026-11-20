@@ -57,18 +57,44 @@ class AgentRouter:
         self.memory.add_message("user", user_text)
         lower = user_text.lower().strip()
 
-        # 1. Native Settings App Launcher (Windows, macOS, Linux)
-        if any(w in lower for w in ["setting", "settings", "system settings"]):
+        # 1. Close Intent Detection (Apps, Tabs, Windows)
+        is_close_intent = any(w in lower for w in [
+            "close", "band karo", "band kar do", "shut", "kill", "terminate", "exit", "hata do", "hatao"
+        ])
+        if is_close_intent:
+            # Check specific apps to close
+            for app_name in FAST_APP_NAMES:
+                if app_name in lower:
+                    res = SystemNavigator.close_app(app_name)
+                    clean_name = app_name.capitalize()
+                    reply = f"Maine {clean_name} close kar diya hai."
+                    self.memory.add_message("assistant", reply, model="local-fast-tool")
+                    return reply
+
+            # Check if active tab or window
+            if "tab" in lower:
+                SystemNavigator.close_active_window_or_tab(is_tab=True)
+                reply = "Maine active tab close kar diya hai."
+                self.memory.add_message("assistant", reply, model="local-fast-tool")
+                return reply
+            elif any(w in lower for w in ["window", "screen", "app"]):
+                SystemNavigator.close_active_window_or_tab(is_tab=False)
+                reply = "Maine window close kar diya hai."
+                self.memory.add_message("assistant", reply, model="local-fast-tool")
+                return reply
+
+        # 2. Native Settings App Launcher (Windows, macOS, Linux)
+        if any(w in lower for w in ["open settings", "settings kholo", "show settings", "launch settings", "system settings"]):
             res = SystemNavigator.open_settings()
             reply = "Haanji! Maine Settings app open kar diya hai."
             self.memory.add_message("assistant", reply, model="system-navigator")
             return reply
 
-        # 2. Folder & File Explorer Navigation
+        # 3. Folder & File Explorer Navigation
         is_folder_intent = any(w in lower for w in [
             "folder", "directory", "downloads", "documents", "desktop",
             "pictures", "projects", "explorer", "finder", "files"
-        ]) and any(w in lower for w in ["open", "kholo", "chalao", "show", "launch"])
+        ]) and any(w in lower for w in ["open", "kholo", "chalao", "show", "launch"]) and not is_close_intent
         
         if is_folder_intent:
             res = SystemNavigator.open_folder(lower)
@@ -76,8 +102,8 @@ class AgentRouter:
             self.memory.add_message("assistant", reply, model="system-navigator")
             return reply
 
-        # 3. Open Specific File
-        if any(w in lower for w in ["open file", "file kholo", "file open karo"]):
+        # 4. Open Specific File
+        if any(w in lower for w in ["open file", "file kholo", "file open karo"]) and not is_close_intent:
             target_file = re.sub(r"(open file|file kholo|file open karo|please)", "", lower).strip()
             if target_file:
                 res = SystemNavigator.open_file(target_file)
@@ -85,8 +111,12 @@ class AgentRouter:
                 self.memory.add_message("assistant", reply, model="system-navigator")
                 return reply
 
-        # 4. Zero-Latency Cross-Platform App Launch Detection (< 10ms execution)
-        is_launch_intent = any(w in lower for w in ["open", "launch", "chalao", "kholo", "start", "run"])
+        # 5. Zero-Latency Cross-Platform App Launch Detection (< 10ms execution)
+        is_launch_intent = (
+            any(w in lower for w in ["open", "launch", "chalao", "kholo", "start", "run"])
+            and not is_close_intent
+            and not any(neg in lower for neg in ["don't", "dont", "didn't", "did not", "mat kholo", "nahi"])
+        )
         if is_launch_intent:
             for app_name in FAST_APP_NAMES:
                 if app_name in lower:
@@ -97,14 +127,14 @@ class AgentRouter:
                     self.memory.add_message("assistant", reply, model="local-fast-tool")
                     return reply
 
-        # 2. Zero-Latency Windows System Controls
+        # 6. Zero-Latency Windows System Controls
         if any(w in lower for w in ["lock pc", "lock computer", "lock screen", "pc lock karo"]):
             lock_workstation()
             reply = "Maine PC lock kar diya hai."
             self.memory.add_message("assistant", reply, model="local-fast-tool")
             return reply
 
-        # 3. Conversational Live Response via Gemini Flash Lite (sub-second response)
+        # 7. Conversational Live Response via Gemini Flash Lite (sub-second response)
         try:
             if not self.chat:
                 self._init_chat()

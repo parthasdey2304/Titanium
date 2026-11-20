@@ -46,7 +46,7 @@ class WakeWordListener:
         self._speech_buffer: List[bytes] = []
         self._is_recording_speech = False
         self._silence_start_time = 0.0
-        self._max_silence_duration = 0.65 # seconds of silence to conclude speech turn
+        self._max_silence_duration = 0.38 # Snappy silence threshold to conclude speech turn
         self._record_start_time = 0.0
         self._voiced_streak = 0
         self.is_paused = False
@@ -195,9 +195,9 @@ class WakeWordListener:
         try:
             audio_data = sr.AudioData(audio_bytes, self.sample_rate, 2)
             
-            # Multi-language recognition (en-IN -> en-US -> hi-IN)
+            # Fast recognition: Indian English primary, Hindi fallback
             transcript = None
-            for lang in ["en-IN", "en-US", "hi-IN"]:
+            for lang in ["en-IN", "hi-IN"]:
                 try:
                     transcript = self.recognizer.recognize_google(audio_data, language=lang)
                     if transcript:

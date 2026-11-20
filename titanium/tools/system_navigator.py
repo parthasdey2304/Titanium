@@ -242,3 +242,78 @@ class SystemNavigator:
             return {"status": "success", "message": f"Opened {app_name}"}
         except Exception as e:
             return {"status": "error", "message": f"Could not open '{app_name}': {e}"}
+
+    # =========================================================================
+    # 4. APPLICATION & WINDOW TERMINATION
+    # =========================================================================
+    @classmethod
+    def close_app(cls, app_name: str) -> Dict[str, Any]:
+        """Closes a specific application by process name."""
+        query = app_name.lower().strip()
+        if CURRENT_OS == "windows":
+            exe_map = {
+                "edge": "msedge.exe",
+                "msedge": "msedge.exe",
+                "chrome": "chrome.exe",
+                "google chrome": "chrome.exe",
+                "spotify": "Spotify.exe",
+                "notepad": "notepad.exe",
+                "calculator": "CalculatorApp.exe",
+                "calc": "CalculatorApp.exe",
+                "settings": "SystemSettings.exe",
+                "task manager": "Taskmgr.exe",
+                "taskmgr": "Taskmgr.exe",
+                "vscode": "Code.exe",
+                "code": "Code.exe",
+                "cmd": "cmd.exe",
+                "powershell": "powershell.exe",
+            }
+            exe_target = exe_map.get(query)
+            if not exe_target:
+                for k, v in exe_map.items():
+                    if k in query:
+                        exe_target = v
+                        break
+            target_proc = exe_target or f"{query}.exe"
+            try:
+                subprocess.run(["taskkill", "/IM", target_proc, "/T", "/F"], capture_output=True, text=True)
+                return {"status": "success", "message": f"Closed {app_name}"}
+            except Exception as e:
+                return {"status": "error", "message": f"Could not close {app_name}: {e}"}
+        elif CURRENT_OS == "darwin":
+            try:
+                subprocess.run(["pkill", "-f", app_name], capture_output=True)
+                return {"status": "success", "message": f"Closed {app_name}"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+        else:
+            try:
+                subprocess.run(["pkill", "-f", app_name], capture_output=True)
+                return {"status": "success", "message": f"Closed {app_name}"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+    @classmethod
+    def close_active_window_or_tab(cls, is_tab: bool = False) -> Dict[str, Any]:
+        """Closes the currently active window (Alt+F4) or browser tab (Ctrl+W)."""
+        if CURRENT_OS == "windows":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                if is_tab:
+                    # Ctrl + W
+                    user32.keybd_event(0x11, 0, 0, 0)
+                    user32.keybd_event(0x57, 0, 0, 0)
+                    user32.keybd_event(0x57, 0, 2, 0)
+                    user32.keybd_event(0x11, 0, 2, 0)
+                    return {"status": "success", "message": "Closed active tab"}
+                else:
+                    # Alt + F4
+                    user32.keybd_event(0x12, 0, 0, 0)
+                    user32.keybd_event(0x73, 0, 0, 0)
+                    user32.keybd_event(0x73, 0, 2, 0)
+                    user32.keybd_event(0x12, 0, 2, 0)
+                    return {"status": "success", "message": "Closed active window"}
+            except Exception as e:
+                return {"status": "error", "message": f"Could not close window: {e}"}
+        return {"status": "unsupported", "message": "Not implemented for this OS"}
