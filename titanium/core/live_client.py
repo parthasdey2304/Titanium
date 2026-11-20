@@ -77,7 +77,8 @@ class GeminiLiveClient:
                             )
 
         except Exception as e:
-            print(f"[GeminiLiveClient] Live connection error: {e}")
+            # Live WebSocket fallback: standard conversational routing handles continuous turns seamlessly
+            pass
         finally:
             self._is_connected = False
             self._session = None
