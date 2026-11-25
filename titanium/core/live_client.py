@@ -91,9 +91,10 @@ class GeminiLiveClient:
             # Live WebSocket fallback: standard conversational routing handles continuous turns seamlessly
             pass
         finally:
+            was_connected = self._is_connected
             self._is_connected = False
             self._session = None
-            if self.on_state_change:
+            if was_connected and self.on_state_change:
                 self.on_state_change("idle")
 
     def send_text(self, text: str):

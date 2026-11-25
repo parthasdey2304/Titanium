@@ -2,6 +2,7 @@ import os
 import io
 import time
 import wave
+import asyncio
 import threading
 from typing import Optional, Callable
 import numpy as np
@@ -9,6 +10,12 @@ import requests
 import pygame
 
 from titanium.config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_NAME, ELEVENLABS_MODEL_ID
+
+try:
+    import edge_tts
+    HAS_EDGE_TTS = True
+except ImportError:
+    HAS_EDGE_TTS = False
 
 # Initialize pygame audio mixer once globally
 try:
@@ -20,9 +27,12 @@ except Exception as e:
 # High-quality premade voice available on all tiers (Charlie - Deep, Confident, Energetic)
 DEFAULT_VOICE_ID = "IKne3meq5aSn9XLyUdCD"
 FALLBACK_VOICE_ID = "IKne3meq5aSn9XLyUdCD"
+# Consistent free neural voice used whenever ElevenLabs key is absent or quota is exhausted
+EDGE_NEURAL_VOICE = "en-IN-PrabhatNeural"
+
 
 class ElevenLabsTTS:
-    """Streams Hinglish speech via ElevenLabs API using in-process audio (zero console popups)."""
+    """Streams Hinglish speech consistently via ElevenLabs API or Edge Neural TTS (never flip-flops voices mid-session)."""
 
     def __init__(self, api_key: Optional[str] = None, voice_name: str = ELEVENLABS_VOICE_NAME):
         self.api_key = api_key or ELEVENLABS_API_KEY
@@ -30,9 +40,43 @@ class ElevenLabsTTS:
         self.model_id = ELEVENLABS_MODEL_ID or "eleven_flash_v2_5"
         self._voice_id: Optional[str] = DEFAULT_VOICE_ID
         self._is_speaking = False
-        self._fallback_mode = False
+        # Latched once per session on 401/402/403/quota_exceeded so voice stays 100% consistent
+        self._elevenlabs_locked_out = False
+        self._speech_seq = 0
+        self._state_lock = threading.Lock()
+        self._playback_lock = threading.Lock()
         self._cached_chime: Optional[pygame.mixer.Sound] = None
         self._init_chime()
+        self._precheck_elevenlabs_quota()
+
+    def _precheck_elevenlabs_quota(self):
+        """Checks ElevenLabs remaining credits upfront in a quick non-blocking probe
+        so we never flip-flop from ElevenLabs on greeting to fallback on reply #2."""
+        if not self.api_key:
+            self._elevenlabs_locked_out = True
+            return
+
+        def check():
+            try:
+                r = requests.get(
+                    "https://api.elevenlabs.io/v1/user/subscription",
+                    headers={"xi-api-key": self.api_key},
+                    timeout=3,
+                )
+                if r.status_code in (401, 402, 403):
+                    self._elevenlabs_locked_out = True
+                    print("[ElevenLabsTTS] API key rejected during precheck; locking to consistent Neural voice.")
+                elif r.status_code == 200:
+                    data = r.json()
+                    used = data.get("character_count", 0)
+                    limit = data.get("character_limit", 0)
+                    if limit > 0 and (limit - used) < 40:
+                        self._elevenlabs_locked_out = True
+                        print(f"[ElevenLabsTTS] ElevenLabs quota exhausted ({used}/{limit}); locking to consistent Neural voice.")
+            except Exception:
+                pass
+
+        threading.Thread(target=check, daemon=True).start()
 
     def _init_chime(self):
         """Generates a pleasant 2-tone futuristic rising chime in memory."""
@@ -66,8 +110,9 @@ class ElevenLabsTTS:
 
     def set_api_key(self, api_key: str):
         self.api_key = api_key
-        self._voice_id = None
-        self._fallback_mode = False
+        self._voice_id = DEFAULT_VOICE_ID
+        self._elevenlabs_locked_out = not bool(api_key)
+        self._precheck_elevenlabs_quota()
 
     def resolve_voice_id(self) -> str:
         if self._voice_id:
@@ -80,14 +125,19 @@ class ElevenLabsTTS:
         on_start: Optional[Callable[[], None]] = None,
         on_finish: Optional[Callable[[], None]] = None
     ):
-        """Asynchronously converts text to speech and plays it in-process with zero popups."""
+        """Asynchronously converts text to speech and plays it in-process without overlap."""
+        with self._state_lock:
+            self._speech_seq += 1
+            seq = self._speech_seq
+            self._stop_active_audio_only()
+
         threading.Thread(
             target=self._speak_worker,
-            args=(text, on_start, on_finish),
+            args=(seq, text, on_start, on_finish),
             daemon=True
         ).start()
 
-    def _speak_worker(self, text: str, on_start, on_finish):
+    def _speak_worker(self, seq: int, text: str, on_start, on_finish):
         if not text or not text.strip():
             if on_finish:
                 on_finish()
@@ -99,47 +149,83 @@ class ElevenLabsTTS:
                 on_finish()
             return
 
-        # Check if ELEVENLABS_API_KEY was added dynamically to environment or .env
         if not self.api_key:
             self.api_key = os.getenv("ELEVENLABS_API_KEY", "")
 
+        # Bail early if already superseded before network work
+        if seq != self._speech_seq:
+            return
+
         audio_data = None
-        if self.api_key:
+        if self.api_key and not self._elevenlabs_locked_out:
             target_voice_id = self.resolve_voice_id()
             audio_data = self._request_tts_audio(clean_text, target_voice_id)
 
-            # Fallback if selected voice fails
-            if not audio_data and target_voice_id != FALLBACK_VOICE_ID:
+            if not audio_data and not self._elevenlabs_locked_out and target_voice_id != FALLBACK_VOICE_ID:
                 self._voice_id = FALLBACK_VOICE_ID
                 audio_data = self._request_tts_audio(clean_text, FALLBACK_VOICE_ID)
 
+        if seq != self._speech_seq:
+            return
+
+        # Consistent high-quality Edge Neural TTS when ElevenLabs is unconfigured or out of quota
+        if not audio_data and HAS_EDGE_TTS:
+            audio_data = self._request_edge_tts_audio(clean_text)
+
+        if seq != self._speech_seq:
+            return
+
         if audio_data:
-            try:
-                self._is_speaking = True
-                if on_start:
-                    on_start()
+            with self._playback_lock:
+                if seq != self._speech_seq:
+                    return
+                try:
+                    self._is_speaking = True
+                    if on_start:
+                        on_start()
 
-                # Play in-memory with pygame (no temporary files, no powershell subprocess!)
-                bio = io.BytesIO(audio_data)
-                pygame.mixer.music.load(bio)
-                pygame.mixer.music.play()
-                
-                while pygame.mixer.music.get_busy() and self._is_speaking:
-                    time.sleep(0.03)
+                    bio = io.BytesIO(audio_data)
+                    pygame.mixer.music.load(bio)
+                    pygame.mixer.music.play()
 
-            except Exception as e:
-                print(f"[ElevenLabsTTS] In-process playback error: {e}")
-            finally:
-                self._is_speaking = False
-                if on_finish:
-                    on_finish()
+                    while pygame.mixer.music.get_busy() and self._is_speaking and seq == self._speech_seq:
+                        time.sleep(0.03)
+                except Exception as e:
+                    print(f"[ElevenLabsTTS] In-process playback error: {e}")
+                finally:
+                    self._is_speaking = False
+                    if seq == self._speech_seq and on_finish:
+                        on_finish()
         else:
-            # Fallback seamlessly to Windows Native Speech (SAPI5)
-            print("[ElevenLabsTTS] Using Windows Native Speech fallback...")
-            self._speak_native_sapi(clean_text, on_start, on_finish)
+            # Final offline fallback (Windows SAPI5) if completely disconnected
+            with self._playback_lock:
+                if seq != self._speech_seq:
+                    return
+                self._speak_native_sapi(seq, clean_text, on_start, on_finish)
 
-    def _speak_native_sapi(self, text: str, on_start, on_finish):
-        """Native zero-dependency Windows TTS fallback when ElevenLabs key is not set or network fails."""
+    def _request_edge_tts_audio(self, text: str) -> Optional[bytes]:
+        """Synthesizes consistent warm Indian English / Hinglish speech via Edge Neural TTS."""
+        try:
+            async def _synth():
+                comm = edge_tts.Communicate(text, EDGE_NEURAL_VOICE)
+                chunks = []
+                async for chunk in comm.stream():
+                    if chunk.get("type") == "audio":
+                        chunks.append(chunk["data"])
+                return b"".join(chunks)
+
+            loop = asyncio.new_event_loop()
+            try:
+                audio = loop.run_until_complete(_synth())
+            finally:
+                loop.close()
+            return audio if audio else None
+        except Exception as e:
+            print(f"[ElevenLabsTTS] Edge Neural TTS failed: {e}")
+            return None
+
+    def _speak_native_sapi(self, seq: int, text: str, on_start, on_finish):
+        """Offline zero-dependency Windows TTS fallback."""
         try:
             import win32com.client
             import pythoncom
@@ -148,7 +234,8 @@ class ElevenLabsTTS:
             self._is_speaking = True
             if on_start:
                 on_start()
-            speaker.Speak(text, 0)
+            if seq == self._speech_seq:
+                speaker.Speak(text, 0)
         except Exception as e:
             print(f"[ElevenLabsTTS] SAPI fallback error: {e}")
         finally:
@@ -158,7 +245,7 @@ class ElevenLabsTTS:
                 pythoncom.CoUninitialize()
             except Exception:
                 pass
-            if on_finish:
+            if seq == self._speech_seq and on_finish:
                 on_finish()
 
     def _request_tts_audio(self, text: str, voice_id: str) -> Optional[bytes]:
@@ -176,12 +263,14 @@ class ElevenLabsTTS:
             }
         }
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=8)
+            response = requests.post(url, json=payload, headers=headers, timeout=6)
             if response.status_code == 200:
                 return response.content
-            else:
-                print(f"[ElevenLabsTTS] Error ({response.status_code}): {response.text}")
-                return None
+            if response.status_code in (401, 402, 403):
+                # Lock out for session so voice never alternates mid-conversation
+                self._elevenlabs_locked_out = True
+            print(f"[ElevenLabsTTS] Error ({response.status_code}): {response.text}")
+            return None
         except Exception as e:
             print(f"[ElevenLabsTTS] Request failed: {e}")
             return None
@@ -196,8 +285,7 @@ class ElevenLabsTTS:
             cleaned = cleaned[:350] + "... baaki details maine screen par show kar di hain."
         return cleaned.strip()
 
-    def stop_speaking(self):
-        """Immediately interrupts speech."""
+    def _stop_active_audio_only(self):
         self._is_speaking = False
         try:
             pygame.mixer.music.stop()
@@ -208,10 +296,16 @@ class ElevenLabsTTS:
             import pythoncom
             pythoncom.CoInitialize()
             speaker = win32com.client.Dispatch("SAPI.SpVoice")
-            speaker.Speak("", 2)  # SVSFPurgeBeforeSpeak (purges active speech buffer)
+            speaker.Speak("", 2)  # SVSFPurgeBeforeSpeak
             pythoncom.CoUninitialize()
         except Exception:
             pass
+
+    def stop_speaking(self):
+        """Immediately interrupts active speech and cancels pending playback."""
+        with self._state_lock:
+            self._speech_seq += 1
+            self._stop_active_audio_only()
 
     def is_speaking(self) -> bool:
         return self._is_speaking
