@@ -10,7 +10,7 @@ from titanium.memory.sqlite_memory import MemoryManager
 from titanium.core.elevenlabs_tts import ElevenLabsTTS
 from titanium.core.agent_router import AgentRouter
 from titanium.core.live_client import GeminiLiveClient
-from titanium.core.wake_listener import WakeWordListener
+from titanium.core.wake_listener import WakeWordListener, SHUTDOWN_TRIGGERS
 from titanium.ui.siri_orb import SiriOrbWidget
 from titanium.ui.circle_search import CircleToSearchOverlay
 from titanium.ui.subtitle_pill import CompactSubtitlePill
@@ -29,6 +29,7 @@ class TitaniumApp(QObject):
     show_user_prompt_signal = Signal(str)
     start_circle_search_signal = Signal()
     reveal_orb_signal = Signal()
+    wake_command_signal = Signal(str)
 
     def __init__(self, lock_socket=None):
         super().__init__()
@@ -71,6 +72,7 @@ class TitaniumApp(QObject):
         self.show_user_prompt_signal.connect(self._on_show_user_prompt)
         self.start_circle_search_signal.connect(self.overlay.trigger)
         self.reveal_orb_signal.connect(self.reveal_and_focus)
+        self.wake_command_signal.connect(self._handle_wake_command_on_main_thread)
 
         # 5. Bind Live Client State Callbacks
         self.live_client.on_state_change = lambda state: self.update_orb_state.emit(state)
@@ -80,21 +82,28 @@ class TitaniumApp(QObject):
         self._setup_global_hotkey()
 
         # 7. Initialize Always-On Wake Word Listener ('Hey Titanium')
+        # Pause before starting so calibration runs AFTER the startup greeting (never on speaker echo)
         self.wake_listener = WakeWordListener(
             on_wake=self.on_wake_word_triggered,
             on_wake_chime=self.tts.play_wake_chime,
-            on_listening_state=self.on_mic_activity
+            on_listening_state=self.on_mic_activity,
+            on_session_timeout=lambda: self.update_orb_state.emit("idle")
         )
+        self.wake_listener.pause()
         self.wake_listener.start()
 
         # 8. Show initial components
         self.orb.reveal()
         self.tray.show()
 
-        # 9. Spoken greeting: Spoken ONLY ONCE at startup, never repeatedly
+        # 9. Spoken greeting: Spoken ONLY ONCE at startup, then opens active follow-up listening window
         initial_msg = "Haanji Parth, bataiye kya baat hai? Main hoon aapki help karne ke liye."
         self.show_response_signal.emit(initial_msg, "")
-        self.speak_with_pause(initial_msg, next_state="idle")
+        self.speak_with_pause(
+            initial_msg,
+            on_done=lambda: self.wake_listener.set_active_session(True),
+            next_state="listening"
+        )
         self.initial_greeting_done = True
 
         print("[Titanium] Initialized and running in system tray with Wake Word.")
@@ -218,11 +227,11 @@ class TitaniumApp(QObject):
         self.orb.set_live_mode(enable)
         if enable:
             self.live_client.start()
-            self.wake_listener.set_active_session(True)
+            self.wake_listener.set_active_session(True, persistent=True)
             self.update_orb_state.emit("listening")
             self.show_response_signal.emit("🔴 Live Conversation Active (Always Listening)", "")
         else:
-            self.wake_listener.set_active_session(False)
+            self.wake_listener.set_active_session(False, persistent=False)
             self.update_orb_state.emit("idle")
             self.show_response_signal.emit("Live Conversation Paused", "")
 
@@ -262,36 +271,37 @@ class TitaniumApp(QObject):
         QTimer.singleShot(4000, finish_and_quit)
 
     def on_wake_word_triggered(self, cmd: str):
-        """Called when user says 'Hey Titanium' or speaks during an active session."""
+        """Thread-safe entry point from WakeWordListener: marshals command to Qt main thread."""
+        self.wake_command_signal.emit(cmd or "")
+
+    @Slot(str)
+    def _handle_wake_command_on_main_thread(self, cmd: str):
+        """Handles wake word triggers and conversational turns safely on Qt's main thread."""
         print(f"[TitaniumApp] Wake or voice received: '{cmd}'")
         lower = cmd.lower().strip() if cmd else ""
 
         # 0. Voice Shutdown: "Titanium turn yourself off", "shut down", "band ho jao", etc.
-        shutdown_triggers = [
-            "shutdown_titanium", "turn yourself off", "turn off yourself", "turn off titanium",
-            "titanium turn off", "titanium turn yourself off", "shut yourself down", "shut down titanium",
-            "shutdown titanium", "titanium shut down", "titanium shutdown", "turn yourself down",
-            "shut down yourself", "band ho jao", "apne aap ko band karo", "apne aap ko band kar do",
-            "titanium band ho jao", "close yourself", "quit yourself", "exit titanium", "quit titanium",
-            "close titanium", "power off titanium", "titanium power off"
-        ]
-        if cmd == "shutdown_titanium" or any(w in lower for w in shutdown_triggers):
+        if cmd == "shutdown_titanium" or any(w in lower for w in SHUTDOWN_TRIGGERS):
             self.shutdown()
             return
 
         # Quick Voice Stop Music Bypass
         if any(w in lower for w in ["stop music", "pause music", "gaana band karo", "music roko", "music pause"]):
             self.music_player.stop()
-            self.speak_with_pause("Maine music band kar diya hai.", next_state="idle")
+            self.speak_with_pause("Maine music band kar diya hai.", next_state="listening")
             return
 
-        # 1. Exit / Stop Live Conversation or active session
+        # 1. Exit / Stop Live Conversation or active follow-up session
         if any(w in lower for w in [
             "stop live conversation", "disable live conversation", "turn off live conversation",
             "stop live mode", "disable live mode", "exit live mode", "exit_session", "stop listening", "bye", "shant"
         ]):
+            was_live = self.live_conversation_mode
             self.set_live_conversation_mode(False)
-            self.speak_with_pause("Live conversation mode disabled. Main normal wake word mode par switch ho gaya hoon.", next_state="idle")
+            if was_live:
+                self.speak_with_pause("Live conversation mode disabled. Main normal wake word mode par switch ho gaya hoon.", next_state="idle")
+            else:
+                self.speak_with_pause("Theek hai Parth, jab zaroorat ho 'Hey Titanium' bol dena.", next_state="idle")
             return
 
         # 2. Enable Live Conversation Mode
@@ -305,12 +315,12 @@ class TitaniumApp(QObject):
             self.speak_with_pause(msg, next_state="listening")
             return
 
-        # 3. Follow conversation request (multi-turn follow when live mode is not enabled)
+        # 3. Follow conversation request (explicitly keep mic persistent)
         if any(w in lower for w in [
             "follow the conversation", "follow conversation", "continue conversation", "please follow the conversation"
         ]):
             self.follow_conversation = True
-            self.wake_listener.set_active_session(True)
+            self.wake_listener.set_active_session(True, persistent=True)
             self.update_orb_state.emit("listening")
             msg = "Haanji Parth! Main conversation follow kar raha hoon. Boliye!"
             self.show_response_signal.emit(msg, cmd)
@@ -321,7 +331,7 @@ class TitaniumApp(QObject):
             self.wake_listener.set_active_session(True)
             self.handle_user_prompt(cmd.strip())
         else:
-            # Wake word triggered without trailing query: listen attentively without repeating greetings
+            # Wake word triggered without trailing query: listen attentively
             self.wake_listener.set_active_session(True)
             self.update_orb_state.emit("listening")
             self.show_response_signal.emit("Listening...", "")
@@ -360,15 +370,7 @@ class TitaniumApp(QObject):
     def handle_user_prompt(self, prompt: str):
         """Processes a prompt from user dialog or voice."""
         lower = prompt.lower().strip()
-        shutdown_triggers = [
-            "turn yourself off", "turn off yourself", "turn off titanium", "titanium turn off",
-            "titanium turn yourself off", "shut yourself down", "shut down titanium", "shutdown titanium",
-            "titanium shut down", "titanium shutdown", "turn yourself down", "shut down yourself",
-            "band ho jao", "apne aap ko band karo", "apne aap ko band kar do", "titanium band ho jao",
-            "close yourself", "quit yourself", "exit titanium", "quit titanium", "close titanium",
-            "power off titanium", "titanium power off"
-        ]
-        if any(w in lower for w in shutdown_triggers):
+        if any(w in lower for w in SHUTDOWN_TRIGGERS):
             self.shutdown()
             return
 
@@ -385,19 +387,14 @@ class TitaniumApp(QObject):
             # Display conversation turn (user prompt + AI response)
             self.show_response_signal.emit(answer, prompt)
 
-            # Determine whether mic stays continuously active (Live Mode) or returns to idle
-            should_stay_listening = self.live_conversation_mode or self.follow_conversation
-            next_st = "listening" if should_stay_listening else "idle"
+            # Keep follow-up listening window open after every reply so conversation flows naturally
+            persistent = self.live_conversation_mode or self.follow_conversation
 
             def on_done():
-                if should_stay_listening:
-                    self.wake_listener.set_active_session(True)
-                    self.update_orb_state.emit("listening")
-                else:
-                    self.wake_listener.set_active_session(False)
-                    self.update_orb_state.emit("idle")
+                self.wake_listener.set_active_session(True, persistent=persistent)
+                self.update_orb_state.emit("listening")
 
-            self.speak_with_pause(answer, on_done=on_done, next_state=next_st)
+            self.speak_with_pause(answer, on_done=on_done, next_state="listening")
 
         threading.Thread(target=worker, daemon=True).start()
 

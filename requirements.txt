@@ -10,6 +10,7 @@ numpy>=1.26.0
 pynput>=1.7.6
 psutil>=5.9.0
 pygame>=2.5.0
+edge-tts>=6.1.0
 speechrecognition>=3.10.0
 scipy>=1.11.0
 

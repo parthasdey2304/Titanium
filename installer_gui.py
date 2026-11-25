@@ -70,6 +70,9 @@ class InstallWorker(QThread):
 
     def run(self):
         try:
+            self.progress.emit(10, "Closing active Titanium instances...")
+            subprocess.run(["taskkill", "/F", "/IM", "Titanium.exe"], capture_output=True, timeout=5)
+
             self.progress.emit(15, "Verifying Google Gemini API Key...")
             if not self._verify_key(self.api_key):
                 self.finished.emit(False, "API key verification failed. Please check your key at aistudio.google.com and retry.")
@@ -511,8 +514,26 @@ class TitaniumInstallerWindow(QMainWindow):
 
         if self.detected_keys.get("elevenlabs"):
             self.eleven_input.setText(self.detected_keys["elevenlabs"])
-            eleven_hint = QLabel("✓ Auto-detected ElevenLabs API key on this machine.")
-            eleven_hint.setStyleSheet("color: #81C995; font-size: 12px; font-weight: 500;")
+            eleven_msg = "✓ Auto-detected ElevenLabs API key on this machine."
+            eleven_color = "#81C995"
+            try:
+                sub = requests.get(
+                    "https://api.elevenlabs.io/v1/user/subscription",
+                    headers={"xi-api-key": self.detected_keys["elevenlabs"]},
+                    timeout=3,
+                )
+                if sub.status_code == 200:
+                    d = sub.json()
+                    rem = d.get("character_limit", 0) - d.get("character_count", 0)
+                    if rem < 40:
+                        eleven_msg = "⚠️ Detected ElevenLabs key has 0 credits left — will use consistent Neural Voice."
+                        eleven_color = "#FBBF24"
+                    else:
+                        eleven_msg = f"✓ Auto-detected ElevenLabs API key ({rem:,} credits remaining)."
+            except Exception:
+                pass
+            eleven_hint = QLabel(eleven_msg)
+            eleven_hint.setStyleSheet(f"color: {eleven_color}; font-size: 12px; font-weight: 500;")
             card_layout.addWidget(eleven_hint)
         else:
             e_hint_box = QHBoxLayout()

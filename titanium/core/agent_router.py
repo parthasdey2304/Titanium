@@ -16,6 +16,7 @@ from titanium.tools.app_launcher import WindowsAppLauncher
 from titanium.tools.system_navigator import SystemNavigator
 from titanium.tools.system_tools import lock_workstation, set_system_volume, get_system_info
 from titanium.tools.music_player import TitaniumMusicPlayer
+from titanium.core.wake_listener import SHUTDOWN_TRIGGERS
 
 # Common desktop apps for zero-latency local dispatch
 FAST_APP_NAMES = [
@@ -128,14 +129,7 @@ class AgentRouter:
             return reply
 
         # 0. Self-Shutdown Detection ("Titanium turn yourself off", "shut down", etc.)
-        if any(w in lower for w in [
-            "turn yourself off", "turn off yourself", "turn off titanium", "titanium turn off",
-            "titanium turn yourself off", "shut yourself down", "shut down titanium", "shutdown titanium",
-            "titanium shut down", "titanium shutdown", "turn yourself down", "shut down yourself",
-            "band ho jao", "apne aap ko band karo", "apne aap ko band kar do", "titanium band ho jao",
-            "close yourself", "quit yourself", "exit titanium", "quit titanium", "close titanium",
-            "power off titanium", "titanium power off"
-        ]):
+        if any(w in lower for w in SHUTDOWN_TRIGGERS):
             return "SHUTDOWN_REQUESTED"
 
         # 1. Close Intent Detection (Apps, Tabs, Windows)
