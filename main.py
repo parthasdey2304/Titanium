@@ -137,12 +137,14 @@ class TitaniumApp(QObject):
         self.show_response_signal.emit("Titanium Ready & Active", "")
 
     def _on_show_response(self, text: str, user_text: str = ""):
-        """Displays conversational response docked directly below the Siri Orb."""
-        self.subtitle_pill.display_below_orb(text, self.orb.geometry(), user_text=user_text)
+        """Displays conversational response docked directly below the Siri Orb. (Commented out as requested)"""
+        # self.subtitle_pill.display_below_orb(text, self.orb.geometry(), user_text=user_text)
+        pass
 
     def _on_show_user_prompt(self, user_text: str):
-        """Displays user prompt immediately in black Gemini dark-mode bubble shifted right."""
-        self.subtitle_pill.show_user_prompt(user_text, self.orb.geometry())
+        """Displays user prompt immediately in black Gemini dark-mode bubble shifted right. (Commented out as requested)"""
+        # self.subtitle_pill.show_user_prompt(user_text, self.orb.geometry())
+        pass
 
     def toggle_orb_visibility(self):
         if self.orb.isVisible():

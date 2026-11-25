@@ -18,6 +18,12 @@ try:
 except ImportError:
     HAS_YTDLP = False
 
+try:
+    from ytmusicapi import YTMusic
+    HAS_YTMUSIC = True
+except ImportError:
+    HAS_YTMUSIC = False
+
 
 class TitaniumMusicPlayer:
     """Headless background in-process music player for Titanium.
@@ -157,7 +163,7 @@ class TitaniumMusicPlayer:
                 print(f"[MusicPlayer] Worker loop exception: {e}")
 
     def play(self, query: str, on_resolved: Optional[Callable[[bool, str], None]] = None) -> str:
-        """Asynchronously extracts stream and starts headless audio playback.
+        """Asynchronously extracts stream using YouTube Music API and starts headless audio playback.
         Returns immediate confirmation title/query.
         """
         clean_query = query.strip()
@@ -175,32 +181,60 @@ class TitaniumMusicPlayer:
                     on_resolved(False, "yt-dlp is not installed")
                 return
 
-            print(f"[MusicPlayer] Searching audio stream for '{search_query}'...")
+            print(f"[MusicPlayer] Searching YouTube Music for '{search_query}'...")
             
-            # Primary fast extraction using YouTube & SoundCloud
+            stream_url = None
+            song_title = display_title
+            video_id = None
+
+            # 1. Primary: Use YouTube Music (Google Innertube) API to find the exact song track
+            if HAS_YTMUSIC:
+                try:
+                    ytm = YTMusic()
+                    results = ytm.search(search_query, filter="songs")
+                    if results and len(results) > 0:
+                        first = results[0]
+                        video_id = first.get("videoId")
+                        artists = ", ".join([a.get("name", "") for a in first.get("artists", []) if a.get("name")])
+                        track_title = first.get("title", "")
+                        if track_title:
+                            song_title = f"{track_title} - {artists}" if artists else track_title
+                            print(f"[MusicPlayer] YouTube Music API resolved: '{song_title}' (id: {video_id})")
+                except Exception as ytm_err:
+                    print(f"[MusicPlayer] YouTube Music API note: {ytm_err}")
+
             ydl_opts = {
                 'format': 'bestaudio[ext=m4a]/bestaudio/best',
                 'noplaylist': True,
                 'quiet': True,
                 'no_warnings': True,
-                'default_search': 'ytsearch1',
-                'socket_timeout': 8,
+                'socket_timeout': 6,
                 'retries': 2,
             }
 
-            stream_url = None
-            song_title = display_title
+            # 2. Extract direct audio stream from YouTube Music videoId or search query
+            if video_id:
+                try:
+                    with YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                        if info:
+                            stream_url = info.get("url")
+                            song_title = info.get("title", song_title)
+                except Exception as ve:
+                    print(f"[MusicPlayer] Direct video_id stream extraction error: {ve}")
 
-            # Try YouTube extraction
-            try:
-                with YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(search_query, download=False)
-                    if info:
-                        entry = info['entries'][0] if 'entries' in info and info['entries'] else info
-                        stream_url = entry.get('url')
-                        song_title = entry.get('title', song_title)
-            except Exception as e:
-                print(f"[MusicPlayer] YouTube extraction error: {e}")
+            if not stream_url:
+                try:
+                    ydl_search_opts = dict(ydl_opts)
+                    ydl_search_opts['default_search'] = 'ytsearch1'
+                    with YoutubeDL(ydl_search_opts) as ydl:
+                        info = ydl.extract_info(search_query, download=False)
+                        if info:
+                            entry = info['entries'][0] if 'entries' in info and info['entries'] else info
+                            stream_url = entry.get('url')
+                            song_title = entry.get('title', song_title)
+                except Exception as e:
+                    print(f"[MusicPlayer] YouTube search extraction error: {e}")
 
             # Fallback to SoundCloud if YouTube failed or format unavailable
             if not stream_url:

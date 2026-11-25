@@ -1,6 +1,7 @@
 import asyncio
 import threading
 from typing import Optional, Callable
+import numpy as np
 from google import genai
 from google.genai import types
 
@@ -8,22 +9,32 @@ from titanium.config import GEMINI_API_KEY, LIVE_MODEL, HINGLISH_SYSTEM_PROMPT
 from titanium.core.screen_streamer import ScreenStreamer
 from titanium.core.elevenlabs_tts import ElevenLabsTTS
 
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except ImportError:
+    HAS_SOUNDDEVICE = False
+
+
 class GeminiLiveClient:
     """Manages real-time bidirectional WebSocket session with Gemini 3.8 Live:
     - Streams mic audio / text to Gemini Live
     - Streams screen frames (1 FPS) when screen share is toggled
-    - Speaks response using ElevenLabs 'Viraj' voice (or native audio)
+    - Speaks natively with Gemini 3.8 Live's original real-time voice
     """
 
     def __init__(self, tts: Optional[ElevenLabsTTS] = None):
         self.tts = tts or ElevenLabsTTS()
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.client = genai.Client(
+            api_key=GEMINI_API_KEY,
+            http_options=types.HttpOptions(api_version="v1alpha")
+        )
         self.screen_streamer = ScreenStreamer(fps=1.0)
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session = None
         self._is_connected = False
         self._worker_thread: Optional[threading.Thread] = None
-        self.on_state_change: Optional[Callable[[str], None]] = None # 'idle', 'listening', 'thinking', 'speaking'
+        self.on_state_change: Optional[Callable[[str], None]] = None  # 'idle', 'listening', 'thinking', 'speaking'
         self.on_shutdown: Optional[Callable[[], None]] = None
 
     def start(self):
@@ -40,7 +51,12 @@ class GeminiLiveClient:
 
     async def _connect_and_listen(self):
         config = types.LiveConnectConfig(
-            response_modalities=[types.Modality.TEXT], # We use ElevenLabs Viraj for TTS
+            response_modalities=[types.Modality.AUDIO],  # Native Gemini 3.8 Live Voice
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
+                )
+            ),
             system_instruction=types.Content(
                 parts=[types.Part.from_text(text=HINGLISH_SYSTEM_PROMPT)]
             )
@@ -52,44 +68,36 @@ class GeminiLiveClient:
             async with self.client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
                 self._session = session
                 self._is_connected = True
-                print("[GeminiLiveClient] Connected to Gemini 3.8 Live.")
+                print("[GeminiLiveClient] Connected to Gemini 3.8 Live with Native Voice.")
                 if self.on_state_change:
                     self.on_state_change("listening")
 
-                # Receive loop
-                accumulated_text = []
-                async for response in session.receive():
-                    server_content = response.server_content
-                    if server_content is not None and server_content.model_turn:
-                        for part in server_content.model_turn.parts:
-                            if part.text:
-                                accumulated_text.append(part.text)
+                audio_stream = None
+                if HAS_SOUNDDEVICE:
+                    audio_stream = sd.OutputStream(samplerate=24000, channels=1, dtype='int16')
+                    audio_stream.start()
 
-                    if server_content and server_content.turn_complete:
-                        full_reply = "".join(accumulated_text).strip()
-                        accumulated_text = []
-                        if full_reply:
-                            print(f"[GeminiLive] {full_reply}")
-                            # Check if model responded to turn off / shutdown
-                            is_shutdown_reply = any(w in full_reply.lower() for w in [
-                                "shutting down titanium", "turning off titanium", "titanium band ho raha hai", "shutting down", "turning myself off"
-                            ])
-                            # Speak with ElevenLabs Viraj voice
-                            def handle_finish():
-                                if self.on_state_change:
-                                    self.on_state_change("listening")
-                                if is_shutdown_reply and self.on_shutdown:
-                                    self.on_shutdown()
+                try:
+                    async for response in session.receive():
+                        server_content = response.server_content
+                        if server_content is not None and server_content.model_turn:
+                            for part in server_content.model_turn.parts:
+                                if part.inline_data and part.inline_data.data and audio_stream:
+                                    if self.on_state_change:
+                                        self.on_state_change("speaking")
+                                    arr = np.frombuffer(part.inline_data.data, dtype=np.int16)
+                                    audio_stream.write(arr)
 
-                            self.tts.speak_text(
-                                full_reply,
-                                on_start=lambda: self.on_state_change("speaking") if self.on_state_change else None,
-                                on_finish=handle_finish
-                            )
+                        if server_content and server_content.turn_complete:
+                            if self.on_state_change:
+                                self.on_state_change("listening")
+                finally:
+                    if audio_stream:
+                        audio_stream.stop()
+                        audio_stream.close()
 
         except Exception as e:
-            # Live WebSocket fallback: standard conversational routing handles continuous turns seamlessly
-            pass
+            print(f"[GeminiLiveClient] Connection note: {e}")
         finally:
             was_connected = self._is_connected
             self._is_connected = False

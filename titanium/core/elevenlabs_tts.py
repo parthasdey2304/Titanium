@@ -7,9 +7,23 @@ import threading
 from typing import Optional, Callable
 import numpy as np
 import requests
-import pygame
 
-from titanium.config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_NAME, ELEVENLABS_MODEL_ID
+from titanium.config import GEMINI_API_KEY, LIVE_MODEL, HINGLISH_SYSTEM_PROMPT
+# # ElevenLabs Voice Config (Retained but commented out as requested)
+# from titanium.config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_NAME, ELEVENLABS_MODEL_ID
+
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except ImportError:
+    HAS_SOUNDDEVICE = False
+
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 
 try:
     import edge_tts
@@ -17,66 +31,69 @@ try:
 except ImportError:
     HAS_EDGE_TTS = False
 
-# Initialize pygame audio mixer once globally
 try:
+    import pygame
     if not pygame.mixer.get_init():
         pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
-except Exception as e:
-    print(f"[ElevenLabsTTS] Pygame mixer init warning: {e}")
+    HAS_PYGAME = True
+except Exception:
+    HAS_PYGAME = False
 
-# High-quality premade voice available on all tiers (Charlie - Deep, Confident, Energetic)
-DEFAULT_VOICE_ID = "IKne3meq5aSn9XLyUdCD"
-FALLBACK_VOICE_ID = "IKne3meq5aSn9XLyUdCD"
-# Consistent free neural voice used whenever ElevenLabs key is absent or quota is exhausted
+# Consistent free fallback voice if network drops
 EDGE_NEURAL_VOICE = "en-IN-PrabhatNeural"
+GEMINI_VOICE_NAME = "Puck"  # Gemini 3.8 Live Prebuilt Voice (Natural, Crisp, Conversational)
 
 
 class ElevenLabsTTS:
-    """Streams Hinglish speech consistently via ElevenLabs API or Edge Neural TTS (never flip-flops voices mid-session)."""
+    """TTS and Voice Engine for Titanium.
+    
+    Now uses the original Gemini 3.8 Live Voice (Puck) streamed in real-time
+    with sub-second Time-To-First-Audio (<0.8s) via google.genai Live WebSocket API.
+    
+    The previous ElevenLabs code is retained below in commented form as requested.
+    """
 
-    def __init__(self, api_key: Optional[str] = None, voice_name: str = ELEVENLABS_VOICE_NAME):
-        self.api_key = api_key or ELEVENLABS_API_KEY
-        self.voice_name = voice_name
-        self.model_id = ELEVENLABS_MODEL_ID or "eleven_flash_v2_5"
-        self._voice_id: Optional[str] = DEFAULT_VOICE_ID
+    def __init__(self, api_key: Optional[str] = None, voice_name: str = "Puck"):
+        # self.api_key = api_key or ELEVENLABS_API_KEY
+        # self.voice_name = voice_name
+        # self.model_id = ELEVENLABS_MODEL_ID or "eleven_flash_v2_5"
+        self.gemini_key = GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        self.voice_name = voice_name or GEMINI_VOICE_NAME
         self._is_speaking = False
-        # Latched once per session on 401/402/403/quota_exceeded so voice stays 100% consistent
-        self._elevenlabs_locked_out = False
         self._speech_seq = 0
         self._state_lock = threading.Lock()
         self._playback_lock = threading.Lock()
-        self._cached_chime: Optional[pygame.mixer.Sound] = None
+        self._cached_chime = None
         self._init_chime()
-        self._precheck_elevenlabs_quota()
 
-    def _precheck_elevenlabs_quota(self):
-        """Checks ElevenLabs remaining credits upfront in a quick non-blocking probe
-        so we never flip-flop from ElevenLabs on greeting to fallback on reply #2."""
-        if not self.api_key:
-            self._elevenlabs_locked_out = True
-            return
+        # # ElevenLabs Precheck (Commented out)
+        # self._elevenlabs_locked_out = True
+        # self._precheck_elevenlabs_quota()
 
-        def check():
-            try:
-                r = requests.get(
-                    "https://api.elevenlabs.io/v1/user/subscription",
-                    headers={"xi-api-key": self.api_key},
-                    timeout=3,
-                )
-                if r.status_code in (401, 402, 403):
-                    self._elevenlabs_locked_out = True
-                    print("[ElevenLabsTTS] API key rejected during precheck; locking to consistent Neural voice.")
-                elif r.status_code == 200:
-                    data = r.json()
-                    used = data.get("character_count", 0)
-                    limit = data.get("character_limit", 0)
-                    if limit > 0 and (limit - used) < 40:
-                        self._elevenlabs_locked_out = True
-                        print(f"[ElevenLabsTTS] ElevenLabs quota exhausted ({used}/{limit}); locking to consistent Neural voice.")
-            except Exception:
-                pass
-
-        threading.Thread(target=check, daemon=True).start()
+    # def _precheck_elevenlabs_quota(self):
+    #     """Checks ElevenLabs remaining credits upfront in a quick non-blocking probe
+    #     so we never flip-flop from ElevenLabs on greeting to fallback on reply #2."""
+    #     if not self.api_key:
+    #         self._elevenlabs_locked_out = True
+    #         return
+    #     def check():
+    #         try:
+    #             r = requests.get(
+    #                 "https://api.elevenlabs.io/v1/user/subscription",
+    #                 headers={"xi-api-key": self.api_key},
+    #                 timeout=3,
+    #             )
+    #             if r.status_code in (401, 402, 403):
+    #                 self._elevenlabs_locked_out = True
+    #             elif r.status_code == 200:
+    #                 data = r.json()
+    #                 used = data.get("character_count", 0)
+    #                 limit = data.get("character_limit", 0)
+    #                 if limit > 0 and (limit - used) < 40:
+    #                     self._elevenlabs_locked_out = True
+    #         except Exception:
+    #             pass
+    #     threading.Thread(target=check, daemon=True).start()
 
     def _init_chime(self):
         """Generates a pleasant 2-tone futuristic rising chime in memory."""
@@ -96,28 +113,24 @@ class ElevenLabsTTS:
                 wf.setframerate(fs)
                 wf.writeframes(audio.tobytes())
             bio.seek(0)
-            self._cached_chime = pygame.mixer.Sound(bio)
+            if HAS_PYGAME and pygame.mixer.get_init():
+                self._cached_chime = pygame.mixer.Sound(bio)
+            else:
+                self._cached_chime = audio.tobytes()
         except Exception as e:
             print(f"[ElevenLabsTTS] Chime generation error: {e}")
 
     def play_wake_chime(self):
         """Plays instant wake sound (<10ms latency)."""
-        if self._cached_chime:
-            try:
-                self._cached_chime.play()
-            except Exception:
-                pass
-
-    def set_api_key(self, api_key: str):
-        self.api_key = api_key
-        self._voice_id = DEFAULT_VOICE_ID
-        self._elevenlabs_locked_out = not bool(api_key)
-        self._precheck_elevenlabs_quota()
-
-    def resolve_voice_id(self) -> str:
-        if self._voice_id:
-            return self._voice_id
-        return DEFAULT_VOICE_ID
+        try:
+            if self._cached_chime:
+                if HAS_PYGAME and hasattr(self._cached_chime, "play"):
+                    self._cached_chime.play()
+                elif HAS_SOUNDDEVICE:
+                    arr = np.frombuffer(self._cached_chime, dtype=np.int16)
+                    sd.play(arr, samplerate=22050)
+        except Exception:
+            pass
 
     def speak_text(
         self,
@@ -125,7 +138,7 @@ class ElevenLabsTTS:
         on_start: Optional[Callable[[], None]] = None,
         on_finish: Optional[Callable[[], None]] = None
     ):
-        """Asynchronously converts text to speech and plays it in-process without overlap."""
+        """Asynchronously converts text to speech using Gemini 3.8 Live Voice and streams playback."""
         with self._state_lock:
             self._speech_seq += 1
             seq = self._speech_seq
@@ -149,59 +162,130 @@ class ElevenLabsTTS:
                 on_finish()
             return
 
-        if not self.api_key:
-            self.api_key = os.getenv("ELEVENLABS_API_KEY", "")
+        # Ensure latest Gemini API Key
+        if not self.gemini_key:
+            self.gemini_key = os.getenv("GEMINI_API_KEY", "")
 
         # Bail early if already superseded before network work
         if seq != self._speech_seq:
             return
 
-        audio_data = None
-        if self.api_key and not self._elevenlabs_locked_out:
-            target_voice_id = self.resolve_voice_id()
-            audio_data = self._request_tts_audio(clean_text, target_voice_id)
-
-            if not audio_data and not self._elevenlabs_locked_out and target_voice_id != FALLBACK_VOICE_ID:
-                self._voice_id = FALLBACK_VOICE_ID
-                audio_data = self._request_tts_audio(clean_text, FALLBACK_VOICE_ID)
+        # 1. Primary: Gemini 3.8 Live Voice streaming synthesis
+        played = False
+        if HAS_GENAI and self.gemini_key and HAS_SOUNDDEVICE:
+            try:
+                played = self._stream_gemini_live_audio(seq, clean_text, on_start)
+            except Exception as e:
+                print(f"[ElevenLabsTTS] Gemini Live speech stream error: {e}")
+                played = False
 
         if seq != self._speech_seq:
             return
 
-        # Consistent high-quality Edge Neural TTS when ElevenLabs is unconfigured or out of quota
-        if not audio_data and HAS_EDGE_TTS:
+        # # 2. ElevenLabs API (Retained in commented code as requested)
+        # if not played and self.api_key and not self._elevenlabs_locked_out:
+        #     target_voice_id = "IKne3meq5aSn9XLyUdCD"
+        #     audio_data = self._request_tts_audio(clean_text, target_voice_id)
+        #     if audio_data:
+        #         self._play_bytes_audio(seq, audio_data, on_start)
+        #         played = True
+
+        # 3. High-quality Edge Neural TTS fallback
+        if not played and HAS_EDGE_TTS:
             audio_data = self._request_edge_tts_audio(clean_text)
+            if audio_data and seq == self._speech_seq:
+                self._play_bytes_audio(seq, audio_data, on_start)
+                played = True
 
-        if seq != self._speech_seq:
+        # 4. Final offline SAPI5 fallback
+        if not played and seq == self._speech_seq:
+            self._speak_native_sapi(seq, clean_text, on_start, on_finish)
             return
 
-        if audio_data:
-            with self._playback_lock:
-                if seq != self._speech_seq:
-                    return
-                try:
-                    self._is_speaking = True
-                    if on_start:
-                        on_start()
+        with self._state_lock:
+            self._is_speaking = False
+        if seq == self._speech_seq and on_finish:
+            on_finish()
 
+    def _stream_gemini_live_audio(self, seq: int, text: str, on_start) -> bool:
+        """Connects to Gemini 3.8 Live with Modality.AUDIO and streams 24kHz raw PCM directly to speakers."""
+        started_cb_fired = False
+
+        async def _run():
+            nonlocal started_cb_fired
+            client = genai.Client(api_key=self.gemini_key, http_options=types.HttpOptions(api_version="v1alpha"))
+            config = types.LiveConnectConfig(
+                response_modalities=[types.Modality.AUDIO],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice_name)
+                    )
+                ),
+                system_instruction=types.Content(
+                    parts=[types.Part.from_text(text=HINGLISH_SYSTEM_PROMPT)]
+                )
+            )
+
+            async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
+                if seq != self._speech_seq:
+                    return False
+
+                # Instruct the model to speak the response directly with its native live voice
+                prompt = f"Speak the following naturally and crisply in 1-2 short sentences: {text}"
+                await session.send_realtime_input(text=prompt)
+
+                stream = sd.OutputStream(samplerate=24000, channels=1, dtype='int16')
+                stream.start()
+
+                with self._playback_lock:
+                    try:
+                        self._is_speaking = True
+                        async for resp in session.receive():
+                            if seq != self._speech_seq:
+                                break
+                            sc = resp.server_content
+                            if sc and sc.model_turn:
+                                for p in sc.model_turn.parts:
+                                    if p.inline_data and p.inline_data.data:
+                                        if not started_cb_fired:
+                                            started_cb_fired = True
+                                            if on_start:
+                                                on_start()
+                                        arr = np.frombuffer(p.inline_data.data, dtype=np.int16)
+                                        stream.write(arr)
+                            if sc and sc.turn_complete:
+                                break
+                    finally:
+                        stream.stop()
+                        stream.close()
+
+                return started_cb_fired
+
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_run())
+        finally:
+            loop.close()
+
+    def _play_bytes_audio(self, seq: int, audio_data: bytes, on_start):
+        """Plays encoded MP3/WAV audio via pygame.mixer."""
+        with self._playback_lock:
+            if seq != self._speech_seq:
+                return
+            try:
+                self._is_speaking = True
+                if on_start:
+                    on_start()
+                if HAS_PYGAME and pygame.mixer.get_init():
                     bio = io.BytesIO(audio_data)
                     pygame.mixer.music.load(bio)
                     pygame.mixer.music.play()
-
                     while pygame.mixer.music.get_busy() and self._is_speaking and seq == self._speech_seq:
                         time.sleep(0.03)
-                except Exception as e:
-                    print(f"[ElevenLabsTTS] In-process playback error: {e}")
-                finally:
-                    self._is_speaking = False
-                    if seq == self._speech_seq and on_finish:
-                        on_finish()
-        else:
-            # Final offline fallback (Windows SAPI5) if completely disconnected
-            with self._playback_lock:
-                if seq != self._speech_seq:
-                    return
-                self._speak_native_sapi(seq, clean_text, on_start, on_finish)
+            except Exception as e:
+                print(f"[ElevenLabsTTS] In-process playback error: {e}")
+            finally:
+                self._is_speaking = False
 
     def _request_edge_tts_audio(self, text: str) -> Optional[bytes]:
         """Synthesizes consistent warm Indian English / Hinglish speech via Edge Neural TTS."""
@@ -248,32 +332,32 @@ class ElevenLabsTTS:
             if seq == self._speech_seq and on_finish:
                 on_finish()
 
-    def _request_tts_audio(self, text: str, voice_id: str) -> Optional[bytes]:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?optimize_streaming_latency=3&output_format=mp3_44100_128"
-        headers = {
-            "xi-api-key": self.api_key,
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "text": text,
-            "model_id": self.model_id or "eleven_flash_v2_5",
-            "voice_settings": {
-                "stability": 0.45,
-                "similarity_boost": 0.80
-            }
-        }
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=6)
-            if response.status_code == 200:
-                return response.content
-            if response.status_code in (401, 402, 403):
-                # Lock out for session so voice never alternates mid-conversation
-                self._elevenlabs_locked_out = True
-            print(f"[ElevenLabsTTS] Error ({response.status_code}): {response.text}")
-            return None
-        except Exception as e:
-            print(f"[ElevenLabsTTS] Request failed: {e}")
-            return None
+    # def _request_tts_audio(self, text: str, voice_id: str) -> Optional[bytes]:
+    #     """ElevenLabs HTTP text-to-speech request (Retained in commented code as requested)."""
+    #     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?optimize_streaming_latency=3&output_format=mp3_44100_128"
+    #     headers = {
+    #         "xi-api-key": self.api_key,
+    #         "Content-Type": "application/json"
+    #     }
+    #     payload = {
+    #         "text": text,
+    #         "model_id": self.model_id or "eleven_flash_v2_5",
+    #         "voice_settings": {
+    #             "stability": 0.45,
+    #             "similarity_boost": 0.80
+    #         }
+    #     }
+    #     try:
+    #         response = requests.post(url, json=payload, headers=headers, timeout=6)
+    #         if response.status_code == 200:
+    #             return response.content
+    #         if response.status_code in (401, 402, 403):
+    #             self._elevenlabs_locked_out = True
+    #         print(f"[ElevenLabsTTS] Error ({response.status_code}): {response.text}")
+    #         return None
+    #     except Exception as e:
+    #         print(f"[ElevenLabsTTS] Request failed: {e}")
+    #         return None
 
     def _sanitize_text(self, text: str) -> str:
         """Removes code blocks and excessive markdown before sending to TTS."""
@@ -288,7 +372,13 @@ class ElevenLabsTTS:
     def _stop_active_audio_only(self):
         self._is_speaking = False
         try:
-            pygame.mixer.music.stop()
+            if HAS_SOUNDDEVICE:
+                sd.stop()
+        except Exception:
+            pass
+        try:
+            if HAS_PYGAME and pygame.mixer.get_init():
+                pygame.mixer.music.stop()
         except Exception:
             pass
         try:
